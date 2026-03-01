@@ -14,9 +14,11 @@ TILE_SIZE = 48
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
+LIGHT_GRAY = (180, 180, 180)
 GRAY = (100, 100, 100)
 DARK_GRAY = (50, 50, 50)
-BROWN = (139, 69, 19)
+WALL_COLOR = (40, 40, 45)
+WALL_BORDER = (25, 25, 30)
 YELLOW = (255, 215, 0)
 BLUE = (65, 105, 225)
 RED = (220, 20, 60)
@@ -29,6 +31,14 @@ PLAYER_SPEED = 3
 ENEMY_SPEED = 2.5
 PROJECTILE_SPEED = 8
 PROJECTILE_SIZE = 6
+
+# Boss settings
+BOSS_PIXEL_SIZE = 9
+BOSS_SPEED = 1.5
+BOSS_HEALTH = 100
+BOSS_PROJECTILE_SIZE = 16
+BOSS_PROJECTILE_SPEED = 5
+BOSS_SHOOT_INTERVAL = 90
 
 
 def create_player_sprite():
@@ -231,6 +241,149 @@ class Enemy:
         return self.get_rect().colliderect(player.get_rect())
 
 
+def create_boss_sprite():
+    """Create boss sprite - 3x bigger enemy with red color."""
+    sprite_data = [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 1, 2, 2, 2, 1, 2, 1],
+        [1, 0, 1, 2, 2, 2, 1, 0, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 2, 2, 1, 1, 1, 2, 2, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 1, 2, 2, 2, 2, 2, 1, 1],
+        [0, 1, 2, 1, 1, 1, 1, 1, 1],
+        [0, 1, 2, 1, 0, 0, 1, 1, 0],
+        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+    ]
+    
+    width = len(sprite_data[0]) * BOSS_PIXEL_SIZE
+    height = len(sprite_data) * BOSS_PIXEL_SIZE
+    
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel == 1:
+                color = BLACK
+            elif pixel == 2:
+                color = DARK_RED
+            else:
+                continue
+            
+            pygame.draw.rect(
+                sprite, color,
+                (x * BOSS_PIXEL_SIZE, y * BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE)
+            )
+    
+    return sprite
+
+
+class BossProjectile:
+    def __init__(self, x, y, direction):
+        self.x = x
+        self.y = y
+        self.direction = direction
+        self.speed = BOSS_PROJECTILE_SPEED
+        self.size = BOSS_PROJECTILE_SIZE
+        self.active = True
+
+    def update(self, dungeon):
+        self.x += self.direction[0] * self.speed
+        self.y += self.direction[1] * self.speed
+        
+        if (self.x < 0 or self.x > SCREEN_WIDTH or
+            self.y < 0 or self.y > SCREEN_HEIGHT):
+            self.active = False
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.size, self.size))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
+class Boss:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_boss_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = BOSS_SPEED
+        self.max_health = BOSS_HEALTH
+        self.health = self.max_health
+        self.shoot_timer = 0
+        self.shoot_interval = BOSS_SHOOT_INTERVAL
+
+    def move_towards_player(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance < 100:
+            return
+        
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+            
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def shoot_at_player(self, player):
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_interval:
+            self.shoot_timer = 0
+            
+            dx = player.x - self.x
+            dy = player.y - self.y
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+                
+                proj_x = self.x + self.width // 2 - BOSS_PROJECTILE_SIZE // 2
+                proj_y = self.y + self.height // 2 - BOSS_PROJECTILE_SIZE // 2
+                return BossProjectile(proj_x, proj_y, (dx, dy))
+        return None
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        return self.health <= 0
+
+    def draw(self, screen):
+        screen.blit(self.sprite, (self.x, self.y))
+        
+        bar_width = self.width
+        bar_height = 8
+        bar_x = self.x
+        bar_y = self.y - 15
+        
+        pygame.draw.rect(screen, DARK_RED, (bar_x, bar_y, bar_width, bar_height))
+        health_width = int(bar_width * (self.health / self.max_health))
+        pygame.draw.rect(screen, RED, (bar_x, bar_y, health_width, bar_height))
+        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
 class Projectile:
     def __init__(self, x, y, direction):
         self.x = x
@@ -355,6 +508,8 @@ class Dungeon:
         return False
 
     def check_exit(self, player):
+        if self.exit_point is None:
+            return False
         player_rect = player.get_rect()
         exit_rect = pygame.Rect(
             self.exit_point[0] * TILE_SIZE + TILE_SIZE // 4,
@@ -370,18 +525,19 @@ class Dungeon:
                 rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 
                 if tile == 1:
-                    pygame.draw.rect(screen, GRAY, rect)
-                    pygame.draw.rect(screen, DARK_GRAY, rect, 2)
+                    pygame.draw.rect(screen, WALL_COLOR, rect)
+                    pygame.draw.rect(screen, WALL_BORDER, rect, 2)
                 else:
-                    pygame.draw.rect(screen, BROWN, rect)
+                    pygame.draw.rect(screen, LIGHT_GRAY, rect)
         
-        exit_rect = pygame.Rect(
-            self.exit_point[0] * TILE_SIZE + 4,
-            self.exit_point[1] * TILE_SIZE + 4,
-            TILE_SIZE - 8,
-            TILE_SIZE - 8
-        )
-        pygame.draw.rect(screen, YELLOW, exit_rect)
+        if self.exit_point:
+            exit_rect = pygame.Rect(
+                self.exit_point[0] * TILE_SIZE + 4,
+                self.exit_point[1] * TILE_SIZE + 4,
+                TILE_SIZE - 8,
+                TILE_SIZE - 8
+            )
+            pygame.draw.rect(screen, YELLOW, exit_rect)
 
 
 def create_levels():
@@ -459,6 +615,31 @@ def create_levels():
     }
     levels.append(level3)
     
+    # Level 4 - Boss Arena (empty room)
+    boss_level = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (2, 7),
+        'exit': None,
+        'enemy_count': 0,
+        'is_boss_level': True
+    }
+    levels.append(boss_level)
+    
     return levels
 
 
@@ -486,6 +667,12 @@ class Game:
         
         self.projectiles = []
         self.shoot_cooldown = 0
+        self.enemy_spawn_timer = 0
+        self.enemy_spawn_interval = 180
+        
+        self.boss = None
+        self.boss_projectiles = []
+        self.is_boss_level = False
         
         self.game_won = False
         self.game_over = False
@@ -493,7 +680,18 @@ class Game:
 
     def spawn_enemies(self):
         self.enemies = []
+        self.boss = None
+        self.boss_projectiles = []
         level_data = self.levels[self.current_level]
+        
+        self.is_boss_level = level_data.get('is_boss_level', False)
+        
+        if self.is_boss_level:
+            boss_x = 20 * TILE_SIZE
+            boss_y = 6 * TILE_SIZE
+            self.boss = Boss(boss_x, boss_y)
+            return
+        
         enemy_count = level_data.get('enemy_count', 0)
         exit_pos = level_data['exit']
         tiles = level_data['tiles']
@@ -520,6 +718,32 @@ class Game:
                     self.enemies.append(Enemy(enemy_x, enemy_y))
                     spawned += 1
 
+    def spawn_one_enemy(self):
+        if self.is_boss_level:
+            return
+        level_data = self.levels[self.current_level]
+        exit_pos = level_data['exit']
+        if exit_pos is None:
+            return
+        tiles = level_data['tiles']
+        
+        offsets = [
+            (-1, 0), (1, 0), (0, -1), (0, 1),
+            (-1, -1), (1, -1), (-1, 1), (1, 1),
+            (-2, 0), (2, 0), (0, -2), (0, 2)
+        ]
+        
+        for offset in offsets:
+            tile_x = exit_pos[0] + offset[0]
+            tile_y = exit_pos[1] + offset[1]
+            
+            if 0 <= tile_y < len(tiles) and 0 <= tile_x < len(tiles[0]):
+                if tiles[tile_y][tile_x] == 0:
+                    enemy_x = tile_x * TILE_SIZE + 4
+                    enemy_y = tile_y * TILE_SIZE + 4
+                    self.enemies.append(Enemy(enemy_x, enemy_y))
+                    return
+
     def next_level(self):
         self.current_level += 1
         
@@ -535,6 +759,7 @@ class Game:
         self.projectiles = []
         self.damage_cooldown = 0
         self.shoot_cooldown = 0
+        self.enemy_spawn_timer = 0
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -564,6 +789,12 @@ class Game:
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
         
+        if not self.is_boss_level:
+            self.enemy_spawn_timer += 1
+            if self.enemy_spawn_timer >= self.enemy_spawn_interval:
+                self.enemy_spawn_timer = 0
+                self.spawn_one_enemy()
+        
         for projectile in self.projectiles:
             projectile.update(self.dungeon)
         
@@ -576,7 +807,29 @@ class Game:
                     self.enemies.remove(enemy)
                     break
         
+        if self.boss:
+            for projectile in self.projectiles:
+                if not projectile.active:
+                    continue
+                if projectile.get_rect().colliderect(self.boss.get_rect()):
+                    projectile.active = False
+                    if self.boss.take_damage(1):
+                        self.boss = None
+                        self.game_won = True
+                    break
+        
         self.projectiles = [p for p in self.projectiles if p.active]
+        
+        if self.boss:
+            self.boss.move_towards_player(self.player, self.dungeon)
+            boss_proj = self.boss.shoot_at_player(self.player)
+            if boss_proj:
+                self.boss_projectiles.append(boss_proj)
+        
+        for proj in self.boss_projectiles:
+            proj.update(self.dungeon)
+        
+        self.boss_projectiles = [p for p in self.boss_projectiles if p.active]
         
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
@@ -590,8 +843,21 @@ class Game:
                         self.game_over = True
                     self.damage_cooldown = 60
                     break
+            
+            if self.boss and self.boss.collides_with_player(self.player):
+                if self.player.take_damage():
+                    self.game_over = True
+                self.damage_cooldown = 60
+            
+            for proj in self.boss_projectiles:
+                if proj.collides_with_player(self.player):
+                    proj.active = False
+                    if self.player.take_damage():
+                        self.game_over = True
+                    self.damage_cooldown = 60
+                    break
         
-        if self.dungeon.check_exit(self.player):
+        if not self.is_boss_level and self.dungeon.check_exit(self.player):
             self.next_level()
 
     def draw(self):
@@ -614,17 +880,29 @@ class Game:
             for enemy in self.enemies:
                 enemy.draw(self.screen)
             
+            if self.boss:
+                self.boss.draw(self.screen)
+            
             for projectile in self.projectiles:
                 projectile.draw(self.screen)
             
-            level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
+            for proj in self.boss_projectiles:
+                proj.draw(self.screen)
+            
+            if self.is_boss_level:
+                level_text = self.font.render("BOSS FIGHT!", True, RED)
+            else:
+                level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
             self.screen.blit(level_text, (10, 10))
             
             health_label = self.small_font.render("HP:", True, WHITE)
             self.screen.blit(health_label, (SCREEN_WIDTH - 140, 10))
             self.player.draw_health(self.screen, SCREEN_WIDTH - 110, 8)
             
-            hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
+            if self.is_boss_level:
+                hint_text = self.small_font.render("Defeat the boss to win!", True, RED)
+            else:
+                hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
             
             controls_text = self.small_font.render("WASD to move, SPACE to shoot", True, WHITE)
@@ -652,6 +930,7 @@ class Game:
                         self.projectiles = []
                         self.damage_cooldown = 0
                         self.shoot_cooldown = 0
+                        self.enemy_spawn_timer = 0
                         self.game_won = False
                         self.game_over = False
             
