@@ -18,6 +18,8 @@ DARK_GRAY = (50, 50, 50)
 BROWN = (139, 69, 19)
 YELLOW = (255, 215, 0)
 BLUE = (65, 105, 225)
+RED = (220, 20, 60)
+DARK_RED = (139, 0, 0)
 
 # Player settings
 PIXEL_SIZE = 3
@@ -74,6 +76,8 @@ class Player:
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
         self.speed = PLAYER_SPEED
+        self.max_health = 4
+        self.health = self.max_health
 
     def move(self, dx, dy, dungeon):
         new_x = self.x + dx * self.speed
@@ -83,8 +87,38 @@ class Player:
             self.x = new_x
             self.y = new_y
 
+    def take_damage(self, amount=1):
+        self.health = max(0, self.health - amount)
+        return self.health <= 0
+
+    def heal(self, amount=1):
+        self.health = min(self.max_health, self.health + amount)
+
     def draw(self, screen):
         screen.blit(self.sprite, (self.x, self.y))
+
+    def draw_health(self, screen, x, y):
+        heart_size = 20
+        spacing = 5
+        
+        for i in range(self.max_health):
+            heart_x = x + i * (heart_size + spacing)
+            if i < self.health:
+                self.draw_heart(screen, heart_x, y, heart_size, RED)
+            else:
+                self.draw_heart(screen, heart_x, y, heart_size, DARK_RED)
+
+    def draw_heart(self, screen, x, y, size, color):
+        half = size // 2
+        quarter = size // 4
+        pygame.draw.circle(screen, color, (x + quarter, y + quarter), quarter)
+        pygame.draw.circle(screen, color, (x + half + quarter, y + quarter), quarter)
+        points = [
+            (x, y + quarter),
+            (x + half, y + size),
+            (x + size, y + quarter)
+        ]
+        pygame.draw.polygon(screen, color, points)
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
@@ -294,6 +328,10 @@ class Game:
             level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
             self.screen.blit(level_text, (10, 10))
             
+            health_label = self.small_font.render("HP:", True, WHITE)
+            self.screen.blit(health_label, (SCREEN_WIDTH - 140, 10))
+            self.player.draw_health(self.screen, SCREEN_WIDTH - 110, 8)
+            
             hint_text = self.small_font.render("Find the yellow exit!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
             
@@ -316,6 +354,7 @@ class Game:
                         spawn = self.dungeon.spawn_point
                         self.player.x = spawn[0] * TILE_SIZE + 4
                         self.player.y = spawn[1] * TILE_SIZE + 4
+                        self.player.health = self.player.max_health
                         self.game_won = False
             
             self.handle_input()
