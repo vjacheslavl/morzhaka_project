@@ -35,7 +35,7 @@ PROJECTILE_SIZE = 6
 # Boss settings
 BOSS_PIXEL_SIZE = 9
 BOSS_SPEED = 1.5
-BOSS_HEALTH = 100
+BOSS_HEALTH = 30
 BOSS_PROJECTILE_SIZE = 16
 BOSS_PROJECTILE_SPEED = 5
 BOSS_SHOOT_INTERVAL = 90
@@ -297,6 +297,15 @@ class BossProjectile:
         
         if (self.x < 0 or self.x > SCREEN_WIDTH or
             self.y < 0 or self.y > SCREEN_HEIGHT):
+            self.active = False
+            return
+        
+        tile_x = int((self.x + self.size // 2) // TILE_SIZE)
+        tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+        
+        if (tile_x < 0 or tile_x >= dungeon.width or
+            tile_y < 0 or tile_y >= dungeon.height or
+            dungeon.tiles[tile_y][tile_x] == 1):
             self.active = False
 
     def draw(self, screen):
@@ -563,6 +572,7 @@ def create_levels():
         ],
         'spawn': (2, 2),
         'exit': (22, 11),
+        'enemy_spawn': (20, 10),
         'enemy_count': 2
     }
     levels.append(level1)
@@ -587,6 +597,7 @@ def create_levels():
         ],
         'spawn': (1, 1),
         'exit': (23, 11),
+        'enemy_spawn': (21, 9),
         'enemy_count': 3
     }
     levels.append(level2)
@@ -611,30 +622,32 @@ def create_levels():
         ],
         'spawn': (1, 1),
         'exit': (23, 11),
+        'enemy_spawn': (20, 9),
         'enemy_count': 6
     }
     levels.append(level3)
     
-    # Level 4 - Boss Arena (empty room)
+    # Level 4 - Boss Arena with cover
     boss_level = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
         'spawn': (2, 7),
         'exit': None,
+        'enemy_spawn': None,
         'enemy_count': 0,
         'is_boss_level': True
     }
@@ -693,11 +706,13 @@ class Game:
             return
         
         enemy_count = level_data.get('enemy_count', 0)
-        exit_pos = level_data['exit']
+        exit_pos = level_data.get('exit')
+        if not exit_pos:
+            return
         tiles = level_data['tiles']
         
         offsets = [
-            (-1, 0), (1, 0), (0, -1), (0, 1),
+            (0, 0), (-1, 0), (1, 0), (0, -1), (0, 1),
             (-1, -1), (1, -1), (-1, 1), (1, 1),
             (-2, 0), (2, 0), (0, -2), (0, 2),
             (-2, -1), (2, -1), (-2, 1), (2, 1)
@@ -722,13 +737,13 @@ class Game:
         if self.is_boss_level:
             return
         level_data = self.levels[self.current_level]
-        exit_pos = level_data['exit']
+        exit_pos = level_data.get('exit')
         if exit_pos is None:
             return
         tiles = level_data['tiles']
         
         offsets = [
-            (-1, 0), (1, 0), (0, -1), (0, 1),
+            (0, 0), (-1, 0), (1, 0), (0, -1), (0, 1),
             (-1, -1), (1, -1), (-1, 1), (1, 1),
             (-2, 0), (2, 0), (0, -2), (0, 2)
         ]
