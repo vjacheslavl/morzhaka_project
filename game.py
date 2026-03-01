@@ -150,6 +150,86 @@ def create_boss_music():
 
 BACKGROUND_MUSIC = create_background_music()
 BOSS_MUSIC = create_boss_music()
+
+def create_ice_cave_music():
+    import array
+    import math
+    sample_rate = 22050
+    duration = 4.0
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    notes = [329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 493.88, 440.00]
+    note_duration = duration / len(notes)
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        note_idx = int(t / note_duration) % len(notes)
+        freq = notes[note_idx]
+        
+        crystal = math.sin(2 * math.pi * freq * t) * 0.4
+        crystal += math.sin(2 * math.pi * freq * 2 * t) * 0.2 * math.sin(t * 3)
+        crystal += math.sin(2 * math.pi * freq * 0.5 * t + math.sin(t * 0.5)) * 0.3
+        
+        shimmer = math.sin(2 * math.pi * freq * 3 * t) * 0.1 * (1 + math.sin(t * 8))
+        
+        pad = 0
+        for j in range(3):
+            pad += math.sin(2 * math.pi * freq * (0.25 + j * 0.25) * t + j) * 0.15
+        
+        fade = min(1.0, (t % note_duration) * 8) * max(0.3, 1 - (t % note_duration) / note_duration * 0.6)
+        val = int((crystal + shimmer + pad) * 5000 * fade)
+        buf[i] = max(-32767, min(32767, val))
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.25)
+    return sound
+
+def create_final_boss_music():
+    import array
+    import math
+    sample_rate = 22050
+    duration = 2.5
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    chords = [110.00, 130.81, 146.83, 164.81, 130.81, 110.00, 98.00, 110.00]
+    note_duration = duration / len(chords)
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        note_idx = int(t / note_duration) % len(chords)
+        root = chords[note_idx]
+        fifth = root * 1.5
+        
+        bass = math.sin(2 * math.pi * root * 0.5 * t) * 1.2
+        distorted = math.tanh(math.sin(2 * math.pi * root * t) * 5) * 0.6
+        distorted += math.tanh(math.sin(2 * math.pi * fifth * t) * 5) * 0.5
+        
+        for h in range(2, 12):
+            distorted += 0.15 * math.sin(2 * math.pi * root * h * t + math.sin(t * 7)) / h
+        
+        beat_pos = (t * 8) % 1
+        kick = 0
+        if beat_pos < 0.06:
+            kick = math.sin(2 * math.pi * 45 * beat_pos) * (1 - beat_pos * 16) * 1.2
+        
+        snare = 0
+        if int(t * 8) % 2 == 1 and beat_pos < 0.03:
+            snare = (hash(int(t * 10000)) % 1000 / 500 - 1) * 0.8
+        
+        synth = math.sin(2 * math.pi * root * 4 * t + math.sin(t * 15)) * 0.3
+        
+        envelope = min(1.0, (t % note_duration) * 40) * max(0.8, 1 - (t % note_duration) / note_duration * 0.3)
+        val = int((bass * 2500 + distorted * 3500 + kick * 4000 + snare * 3000 + synth * 2000) * envelope)
+        buf[i] = max(-32767, min(32767, val))
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.4)
+    return sound
+
+ICE_CAVE_MUSIC = create_ice_cave_music()
+FINAL_BOSS_MUSIC = create_final_boss_music()
 current_music = None
 
 # Screen settings
@@ -167,6 +247,15 @@ DARK_GRAY = (50, 50, 50)
 WALL_COLOR = (40, 40, 45)
 WALL_BORDER = (25, 25, 30)
 YELLOW = (255, 215, 0)
+
+# Location 2 - Ice Cave colors
+ICE_WALL_COLOR = (70, 100, 130)
+ICE_WALL_BORDER = (50, 80, 110)
+ICE_FLOOR_COLOR = (200, 220, 240)
+
+# Final boss colors
+FINAL_BOSS_COLOR = (100, 0, 150)
+FINAL_BOSS_OUTLINE = (50, 0, 100)
 BLUE = (65, 105, 225)
 RED = (220, 20, 60)
 DARK_RED = (139, 0, 0)
@@ -429,6 +518,54 @@ def create_boss_sprite():
     return sprite
 
 
+# Final boss settings
+FINAL_BOSS_PIXEL_SIZE = 12
+FINAL_BOSS_HEALTH = 50
+FINAL_BOSS_SPEED = 2.0
+FINAL_BOSS_SHOOT_INTERVAL = 60
+
+
+def create_final_boss_sprite():
+    """Create final boss sprite - 4x bigger enemy with purple color."""
+    sprite_data = [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 1, 2, 2, 2, 1, 2, 1],
+        [1, 0, 1, 2, 2, 2, 1, 0, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 2, 2, 1, 1, 1, 2, 2, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 1, 2, 2, 2, 2, 2, 1, 1],
+        [0, 1, 2, 1, 1, 1, 1, 1, 1],
+        [0, 1, 2, 1, 0, 0, 1, 1, 0],
+        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+    ]
+    
+    width = len(sprite_data[0]) * FINAL_BOSS_PIXEL_SIZE
+    height = len(sprite_data) * FINAL_BOSS_PIXEL_SIZE
+    
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel == 1:
+                color = FINAL_BOSS_OUTLINE
+            elif pixel == 2:
+                color = FINAL_BOSS_COLOR
+            else:
+                continue
+            
+            pygame.draw.rect(
+                sprite, color,
+                (x * FINAL_BOSS_PIXEL_SIZE, y * FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE)
+            )
+    
+    return sprite
+
+
 class BossProjectile:
     def __init__(self, x, y, direction):
         self.x = x
@@ -609,6 +746,108 @@ class Boss:
         return self.get_rect().colliderect(player.get_rect())
 
 
+class FinalBoss:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_final_boss_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = FINAL_BOSS_SPEED
+        self.max_health = FINAL_BOSS_HEALTH
+        self.health = self.max_health
+        self.shoot_timer = 0
+        self.shoot_interval = FINAL_BOSS_SHOOT_INTERVAL
+        self.teleport_timer = 0
+        self.teleport_interval = 180
+
+    def teleport(self, player, dungeon):
+        import random
+        self.teleport_timer += 1
+        if self.teleport_timer < self.teleport_interval:
+            return
+        
+        self.teleport_timer = 0
+        
+        valid_positions = []
+        for tile_y in range(len(dungeon.tiles)):
+            for tile_x in range(len(dungeon.tiles[0])):
+                if dungeon.tiles[tile_y][tile_x] == 0:
+                    pos_x = tile_x * TILE_SIZE
+                    pos_y = tile_y * TILE_SIZE
+                    
+                    if not dungeon.is_wall(pos_x, pos_y, self.width, self.height):
+                        dist_to_player = ((pos_x - player.x) ** 2 + (pos_y - player.y) ** 2) ** 0.5
+                        if dist_to_player > 150:
+                            valid_positions.append((pos_x, pos_y))
+        
+        if valid_positions:
+            new_pos = random.choice(valid_positions)
+            self.x = new_pos[0]
+            self.y = new_pos[1]
+
+    def move_towards_player(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance < 80:
+            return
+        
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+            
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def shoot_at_player(self, player):
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_interval:
+            self.shoot_timer = 0
+            
+            dx = player.x - self.x
+            dy = player.y - self.y
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+                
+                proj_x = self.x + self.width // 2 - BOSS_PROJECTILE_SIZE // 2
+                proj_y = self.y + self.height // 2 - BOSS_PROJECTILE_SIZE // 2
+                return BossProjectile(proj_x, proj_y, (dx, dy))
+        return None
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        return self.health <= 0
+
+    def draw(self, screen):
+        screen.blit(self.sprite, (self.x, self.y))
+        
+        bar_width = self.width
+        bar_height = 10
+        bar_x = self.x
+        bar_y = self.y - 18
+        
+        pygame.draw.rect(screen, (50, 0, 50), (bar_x, bar_y, bar_width, bar_height))
+        health_width = int(bar_width * (self.health / self.max_health))
+        pygame.draw.rect(screen, FINAL_BOSS_COLOR, (bar_x, bar_y, health_width, bar_height))
+        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
 class Projectile:
     def __init__(self, x, y, direction):
         self.x = x
@@ -773,6 +1012,17 @@ class Dungeon:
         self.height = len(self.tiles)
         self.spawn_point = level_data['spawn']
         self.exit_point = level_data['exit']
+        self.location = level_data.get('location', 1)
+        
+        # Set colors based on location
+        if self.location == 2:
+            self.wall_color = ICE_WALL_COLOR
+            self.wall_border = ICE_WALL_BORDER
+            self.floor_color = ICE_FLOOR_COLOR
+        else:
+            self.wall_color = WALL_COLOR
+            self.wall_border = WALL_BORDER
+            self.floor_color = LIGHT_GRAY
 
     def is_wall(self, x, y, width, height):
         corners = [
@@ -812,10 +1062,10 @@ class Dungeon:
                 rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 
                 if tile == 1:
-                    pygame.draw.rect(screen, WALL_COLOR, rect)
-                    pygame.draw.rect(screen, WALL_BORDER, rect, 2)
+                    pygame.draw.rect(screen, self.wall_color, rect)
+                    pygame.draw.rect(screen, self.wall_border, rect, 2)
                 else:
-                    pygame.draw.rect(screen, LIGHT_GRAY, rect)
+                    pygame.draw.rect(screen, self.floor_color, rect)
         
         if self.exit_point:
             exit_rect = pygame.Rect(
@@ -927,9 +1177,139 @@ def create_levels():
         'exit': None,
         'enemy_spawn': None,
         'enemy_count': 0,
-        'is_boss_level': True
+        'is_boss_level': True,
+        'checkpoint': True
     }
     levels.append(boss_level)
+    
+    # === LOCATION 2: Ice Caves (after boss checkpoint) ===
+    
+    # Level 5 - Ice Cave Entrance
+    level5 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 12),
+        'enemy_count': 3,
+        'location': 2
+    }
+    levels.append(level5)
+    
+    # Level 6 - Frozen Corridors
+    level6 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 4,
+        'location': 2
+    }
+    levels.append(level6)
+    
+    # Level 7 - Crystal Cavern
+    level7 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 5,
+        'location': 2
+    }
+    levels.append(level7)
+    
+    # Level 8 - Icy Labyrinth
+    level8 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 6,
+        'location': 2
+    }
+    levels.append(level8)
+    
+    # Level 9 - Final Boss Arena
+    final_boss = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (2, 7),
+        'exit': None,
+        'enemy_count': 0,
+        'is_boss_level': True,
+        'is_final_boss': True,
+        'location': 2
+    }
+    levels.append(final_boss)
     
     return levels
 
@@ -944,6 +1324,7 @@ class Game:
         
         self.levels = create_levels()
         self.current_level = 0
+        self.checkpoint_level = 0
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
         
         spawn = self.dungeon.spawn_point
@@ -962,8 +1343,10 @@ class Game:
         self.enemy_spawn_interval = 180
         
         self.boss = None
+        self.final_boss = None
         self.boss_projectiles = []
         self.is_boss_level = False
+        self.is_final_boss_level = False
         
         self.health_kits = []
         self.health_kit_timer = 0
@@ -984,10 +1367,18 @@ class Game:
     def spawn_enemies(self):
         self.enemies = []
         self.boss = None
+        self.final_boss = None
         self.boss_projectiles = []
         level_data = self.levels[self.current_level]
         
         self.is_boss_level = level_data.get('is_boss_level', False)
+        self.is_final_boss_level = level_data.get('is_final_boss', False)
+        
+        if self.is_final_boss_level:
+            boss_x = 20 * TILE_SIZE
+            boss_y = 6 * TILE_SIZE
+            self.final_boss = FinalBoss(boss_x, boss_y)
+            return
         
         if self.is_boss_level:
             boss_x = 20 * TILE_SIZE
@@ -1024,7 +1415,7 @@ class Game:
                     spawned += 1
 
     def spawn_one_enemy(self):
-        if self.is_boss_level:
+        if self.is_boss_level or self.is_final_boss_level:
             return
         level_data = self.levels[self.current_level]
         exit_pos = level_data.get('exit')
@@ -1067,6 +1458,11 @@ class Game:
             self.health_kits.append(HealthKit(kit_x, kit_y))
 
     def next_level(self):
+        # Save checkpoint if we just completed a boss level
+        prev_level_data = self.levels[self.current_level]
+        if prev_level_data.get('checkpoint', False):
+            self.checkpoint_level = self.current_level + 1
+        
         self.current_level += 1
         
         if self.current_level >= len(self.levels):
@@ -1079,6 +1475,7 @@ class Game:
         spawn = self.dungeon.spawn_point
         self.player.x = spawn[0] * TILE_SIZE + 4
         self.player.y = spawn[1] * TILE_SIZE + 4
+        self.player.health = self.player.max_health
         self.spawn_enemies()
         self.projectiles = []
         self.health_kits = []
@@ -1087,8 +1484,16 @@ class Game:
         self.shoot_cooldown = 0
         self.enemy_spawn_timer = 0
         
-        if self.is_boss_level:
+        # Play appropriate music based on level type and location
+        level_data = self.levels[self.current_level]
+        location = level_data.get('location', 1)
+        
+        if level_data.get('is_final_boss', False):
+            self.play_music(FINAL_BOSS_MUSIC)
+        elif level_data.get('is_boss_level', False):
             self.play_music(BOSS_MUSIC)
+        elif location == 2:
+            self.play_music(ICE_CAVE_MUSIC)
         else:
             self.play_music(BACKGROUND_MUSIC)
 
@@ -1164,6 +1569,18 @@ class Game:
                     projectile.active = False
                     if self.boss.take_damage(1):
                         self.boss = None
+                        self.next_level()
+                        KILL_SOUND.play()
+                    break
+        
+        if self.final_boss:
+            for projectile in self.projectiles:
+                if not projectile.active:
+                    continue
+                if projectile.get_rect().colliderect(self.final_boss.get_rect()):
+                    projectile.active = False
+                    if self.final_boss.take_damage(1):
+                        self.final_boss = None
                         self.game_won = True
                         KILL_SOUND.play()
                         if self.current_music:
@@ -1176,6 +1593,14 @@ class Game:
             self.boss.move_towards_player(self.player, self.dungeon)
             self.boss.teleport(self.player, self.dungeon)
             boss_proj = self.boss.shoot_at_player(self.player)
+            if boss_proj:
+                self.boss_projectiles.append(boss_proj)
+                SHOOT_SOUND.play()
+        
+        if self.final_boss:
+            self.final_boss.move_towards_player(self.player, self.dungeon)
+            self.final_boss.teleport(self.player, self.dungeon)
+            boss_proj = self.final_boss.shoot_at_player(self.player)
             if boss_proj:
                 self.boss_projectiles.append(boss_proj)
                 SHOOT_SOUND.play()
@@ -1205,6 +1630,12 @@ class Game:
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
             
+            if self.final_boss and self.final_boss.collides_with_player(self.player):
+                if self.player.take_damage():
+                    self.game_over = True
+                DAMAGE_SOUND.play()
+                self.damage_cooldown = 60
+            
             for proj in self.boss_projectiles:
                 if proj.collides_with_player(self.player):
                     proj.active = False
@@ -1227,9 +1658,18 @@ class Game:
             self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
         elif self.game_over:
             over_text = self.font.render("GAME OVER", True, RED)
-            restart_text = self.small_font.render("Press R to restart or ESC to quit", True, WHITE)
-            self.screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 20))
-            self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
+            if self.checkpoint_level > 0:
+                checkpoint_text = self.small_font.render(f"Checkpoint: Level {self.checkpoint_level + 1}", True, YELLOW)
+                restart_text = self.small_font.render("Press R to restart from checkpoint or ESC to quit", True, WHITE)
+            else:
+                checkpoint_text = None
+                restart_text = self.small_font.render("Press R to restart or ESC to quit", True, WHITE)
+            self.screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 30))
+            if checkpoint_text:
+                self.screen.blit(checkpoint_text, (SCREEN_WIDTH // 2 - checkpoint_text.get_width() // 2, SCREEN_HEIGHT // 2 + 10))
+                self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
+            else:
+                self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
         else:
             self.dungeon.draw(self.screen)
             self.player.draw(self.screen)
@@ -1240,6 +1680,9 @@ class Game:
             if self.boss:
                 self.boss.draw(self.screen)
             
+            if self.final_boss:
+                self.final_boss.draw(self.screen)
+            
             for projectile in self.projectiles:
                 projectile.draw(self.screen)
             
@@ -1249,18 +1692,26 @@ class Game:
             for kit in self.health_kits:
                 kit.draw(self.screen)
             
-            if self.is_boss_level:
+            if self.is_final_boss_level:
+                level_text = self.font.render("FINAL BOSS!", True, FINAL_BOSS_COLOR)
+            elif self.is_boss_level:
                 level_text = self.font.render("BOSS FIGHT!", True, RED)
             else:
-                level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
+                location = self.levels[self.current_level].get('location', 1)
+                if location == 2:
+                    level_text = self.font.render(f"Ice Caves - Level: {self.current_level + 1}/{len(self.levels)}", True, ICE_FLOOR_COLOR)
+                else:
+                    level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
             self.screen.blit(level_text, (10, 10))
             
             health_label = self.small_font.render("HP:", True, WHITE)
             self.screen.blit(health_label, (SCREEN_WIDTH - 140, 10))
             self.player.draw_health(self.screen, SCREEN_WIDTH - 110, 8)
             
-            if self.is_boss_level:
-                hint_text = self.small_font.render("Defeat the boss to win!", True, RED)
+            if self.is_final_boss_level:
+                hint_text = self.small_font.render("Defeat the Final Boss to escape!", True, FINAL_BOSS_COLOR)
+            elif self.is_boss_level:
+                hint_text = self.small_font.render("Defeat the boss to reach the Ice Caves!", True, RED)
             else:
                 hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
@@ -1279,7 +1730,11 @@ class Game:
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
                     elif event.key == pygame.K_r and (self.game_won or self.game_over):
-                        self.current_level = 0
+                        if self.game_won:
+                            self.current_level = 0
+                            self.checkpoint_level = 0
+                        else:
+                            self.current_level = self.checkpoint_level
                         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
                         spawn = self.dungeon.spawn_point
                         self.player.x = spawn[0] * TILE_SIZE + 4
@@ -1295,7 +1750,12 @@ class Game:
                         self.enemy_spawn_timer = 0
                         self.game_won = False
                         self.game_over = False
-                        self.play_music(BACKGROUND_MUSIC)
+                        level_data = self.levels[self.current_level]
+                        location = level_data.get('location', 1)
+                        if location == 2:
+                            self.play_music(ICE_CAVE_MUSIC)
+                        else:
+                            self.play_music(BACKGROUND_MUSIC)
             
             self.handle_input()
             self.update()
