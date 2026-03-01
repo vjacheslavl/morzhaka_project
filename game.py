@@ -1557,13 +1557,56 @@ def create_levels():
     return levels
 
 
+class MenuEnemy:
+    """Simple enemy for menu background animation."""
+    def __init__(self, x, y, sprite, speed):
+        self.x = x
+        self.y = y
+        self.sprite = sprite
+        self.speed = speed
+        self.direction = [1, 0]
+        self.change_timer = 0
+    
+    def update(self):
+        import random
+        self.change_timer += 1
+        if self.change_timer > 60:
+            self.change_timer = 0
+            self.direction = [random.choice([-1, 0, 1]), random.choice([-1, 0, 1])]
+        
+        self.x += self.direction[0] * self.speed
+        self.y += self.direction[1] * self.speed
+        
+        if self.x < 50:
+            self.x = 50
+            self.direction[0] = 1
+        if self.x > SCREEN_WIDTH - 100:
+            self.x = SCREEN_WIDTH - 100
+            self.direction[0] = -1
+        if self.y < 150:
+            self.y = 150
+            self.direction[1] = 1
+        if self.y > SCREEN_HEIGHT - 100:
+            self.y = SCREEN_HEIGHT - 100
+            self.direction[1] = -1
+    
+    def draw(self, screen):
+        screen.blit(self.sprite, (self.x, self.y))
+
+
 class Game:
     def __init__(self):
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Dungeon Crawler")
+        pygame.display.set_caption("Morzhaka Quest")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.small_font = pygame.font.Font(None, 24)
+        self.title_font = pygame.font.Font(None, 72)
+        self.menu_font = pygame.font.Font(None, 48)
+        
+        self.in_menu = True
+        self.menu_selection = 0
+        self.init_menu_background()
         
         self.levels = create_levels()
         self.current_level = 0
@@ -1601,6 +1644,27 @@ class Game:
         self.game_over = False
         self.running = True
         self.current_music = None
+
+    def init_menu_background(self):
+        import random
+        self.menu_enemies = []
+        
+        for _ in range(3):
+            x = random.randint(100, SCREEN_WIDTH - 200)
+            y = random.randint(200, SCREEN_HEIGHT - 150)
+            self.menu_enemies.append(MenuEnemy(x, y, create_enemy_sprite(), 1.5))
+        
+        for _ in range(2):
+            x = random.randint(100, SCREEN_WIDTH - 200)
+            y = random.randint(200, SCREEN_HEIGHT - 150)
+            self.menu_enemies.append(MenuEnemy(x, y, create_ice_enemy_sprite(), 1.2))
+        
+        boss_x = SCREEN_WIDTH // 2 - 40
+        boss_y = SCREEN_HEIGHT // 2 + 50
+        self.menu_boss = MenuEnemy(boss_x, boss_y, create_boss_sprite(), 0.8)
+
+    def start_game(self):
+        self.in_menu = False
         self.play_music(BACKGROUND_MUSIC)
 
     def play_music(self, music):
@@ -1943,7 +2007,7 @@ class Game:
         self.screen.fill(BLACK)
         
         if self.game_won:
-            win_text = self.font.render("Congratulations! You escaped the dungeon!", True, GREEN)
+            win_text = self.font.render("Congratulations! You completed Morzhaka Quest!", True, GREEN)
             restart_text = self.small_font.render("Press R to restart or ESC to quit", True, WHITE)
             self.screen.blit(win_text, (SCREEN_WIDTH // 2 - win_text.get_width() // 2, SCREEN_HEIGHT // 2 - 20))
             self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
@@ -2019,47 +2083,98 @@ class Game:
         
         pygame.display.flip()
 
+    def draw_menu(self):
+        self.screen.fill((20, 20, 30))
+        
+        for enemy in self.menu_enemies:
+            enemy.update()
+            enemy.draw(self.screen)
+        
+        self.menu_boss.update()
+        self.menu_boss.draw(self.screen)
+        
+        title_text = self.title_font.render("MORZHAKA QUEST", True, YELLOW)
+        title_shadow = self.title_font.render("MORZHAKA QUEST", True, (80, 60, 0))
+        self.screen.blit(title_shadow, (SCREEN_WIDTH // 2 - title_text.get_width() // 2 + 3, 53))
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 50))
+        
+        start_color = YELLOW if self.menu_selection == 0 else WHITE
+        quit_color = YELLOW if self.menu_selection == 1 else WHITE
+        
+        start_text = self.menu_font.render("START GAME", True, start_color)
+        quit_text = self.menu_font.render("QUIT GAME", True, quit_color)
+        
+        if self.menu_selection == 0:
+            arrow_text = self.menu_font.render(">", True, YELLOW)
+            self.screen.blit(arrow_text, (SCREEN_WIDTH // 2 - start_text.get_width() // 2 - 40, 150))
+        else:
+            arrow_text = self.menu_font.render(">", True, YELLOW)
+            self.screen.blit(arrow_text, (SCREEN_WIDTH // 2 - quit_text.get_width() // 2 - 40, 210))
+        
+        self.screen.blit(start_text, (SCREEN_WIDTH // 2 - start_text.get_width() // 2, 150))
+        self.screen.blit(quit_text, (SCREEN_WIDTH // 2 - quit_text.get_width() // 2, 210))
+        
+        controls_text = self.small_font.render("Use UP/DOWN to select, ENTER to confirm", True, GRAY)
+        self.screen.blit(controls_text, (SCREEN_WIDTH // 2 - controls_text.get_width() // 2, SCREEN_HEIGHT - 50))
+
     def run(self):
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        self.running = False
-                    elif event.key == pygame.K_r and (self.game_won or self.game_over):
-                        if self.game_won:
-                            self.current_level = 0
-                            self.checkpoint_level = 0
-                            self.ice_bullet_unlocked = False
-                        else:
-                            self.current_level = self.checkpoint_level
-                        self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
-                        spawn = self.dungeon.spawn_point
-                        self.player.x = spawn[0] * TILE_SIZE + 4
-                        self.player.y = spawn[1] * TILE_SIZE + 4
-                        self.player.health = self.player.max_health
-                        self.player.last_direction = (1, 0)
-                        self.spawn_enemies()
-                        self.projectiles = []
-                        self.enemy_projectiles = []
-                        self.health_kits = []
-                        self.health_kit_timer = 0
-                        self.damage_cooldown = 0
-                        self.shoot_cooldown = 0
-                        self.enemy_spawn_timer = 0
-                        self.game_won = False
-                        self.game_over = False
-                        level_data = self.levels[self.current_level]
-                        location = level_data.get('location', 1)
-                        if location == 2:
-                            self.play_music(ICE_CAVE_MUSIC)
-                        else:
-                            self.play_music(BACKGROUND_MUSIC)
+                    if self.in_menu:
+                        if event.key == pygame.K_UP or event.key == pygame.K_w:
+                            self.menu_selection = (self.menu_selection - 1) % 2
+                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                            self.menu_selection = (self.menu_selection + 1) % 2
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                            if self.menu_selection == 0:
+                                self.start_game()
+                            else:
+                                self.running = False
+                        elif event.key == pygame.K_ESCAPE:
+                            self.running = False
+                    else:
+                        if event.key == pygame.K_ESCAPE:
+                            self.running = False
+                        elif event.key == pygame.K_r and (self.game_won or self.game_over):
+                            if self.game_won:
+                                self.current_level = 0
+                                self.checkpoint_level = 0
+                                self.ice_bullet_unlocked = False
+                            else:
+                                self.current_level = self.checkpoint_level
+                            self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
+                            spawn = self.dungeon.spawn_point
+                            self.player.x = spawn[0] * TILE_SIZE + 4
+                            self.player.y = spawn[1] * TILE_SIZE + 4
+                            self.player.health = self.player.max_health
+                            self.player.last_direction = (1, 0)
+                            self.spawn_enemies()
+                            self.projectiles = []
+                            self.enemy_projectiles = []
+                            self.health_kits = []
+                            self.health_kit_timer = 0
+                            self.damage_cooldown = 0
+                            self.shoot_cooldown = 0
+                            self.enemy_spawn_timer = 0
+                            self.game_won = False
+                            self.game_over = False
+                            level_data = self.levels[self.current_level]
+                            location = level_data.get('location', 1)
+                            if location == 2:
+                                self.play_music(ICE_CAVE_MUSIC)
+                            else:
+                                self.play_music(BACKGROUND_MUSIC)
             
-            self.handle_input()
-            self.update()
-            self.draw()
+            if self.in_menu:
+                self.draw_menu()
+                pygame.display.flip()
+            else:
+                self.handle_input()
+                self.update()
+                self.draw()
             
             self.clock.tick(60)
         
