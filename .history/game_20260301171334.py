@@ -21,14 +21,11 @@ YELLOW = (255, 215, 0)
 BLUE = (65, 105, 225)
 RED = (220, 20, 60)
 DARK_RED = (139, 0, 0)
-PURPLE = (148, 0, 211)
 
 # Player settings
 PIXEL_SIZE = 3
 PLAYER_SPEED = 3
 ENEMY_SPEED = 2.5
-PROJECTILE_SPEED = 8
-PROJECTILE_SIZE = 6
 
 
 def create_player_sprite():
@@ -231,37 +228,6 @@ class Enemy:
         return self.get_rect().colliderect(player.get_rect())
 
 
-class Projectile:
-    def __init__(self, x, y, direction):
-        self.x = x
-        self.y = y
-        self.direction = direction
-        self.speed = PROJECTILE_SPEED
-        self.size = PROJECTILE_SIZE
-        self.active = True
-
-    def update(self, dungeon):
-        self.x += self.direction[0] * self.speed
-        self.y += self.direction[1] * self.speed
-        
-        tile_x = int((self.x + self.size // 2) // TILE_SIZE)
-        tile_y = int((self.y + self.size // 2) // TILE_SIZE)
-        
-        if (tile_x < 0 or tile_x >= dungeon.width or
-            tile_y < 0 or tile_y >= dungeon.height or
-            dungeon.tiles[tile_y][tile_x] == 1):
-            self.active = False
-
-    def draw(self, screen):
-        pygame.draw.rect(screen, PURPLE, (self.x, self.y, self.size, self.size))
-
-    def get_rect(self):
-        return pygame.Rect(self.x, self.y, self.size, self.size)
-
-    def collides_with_enemy(self, enemy):
-        return self.get_rect().colliderect(enemy.get_rect())
-
-
 class Player:
     def __init__(self, x, y):
         self.x = x
@@ -272,7 +238,6 @@ class Player:
         self.speed = PLAYER_SPEED
         self.max_health = 4
         self.health = self.max_health
-        self.last_direction = (1, 0)
 
     def move(self, dx, dy, dungeon):
         new_x = self.x + dx * self.speed
@@ -281,12 +246,6 @@ class Player:
         if not dungeon.is_wall(new_x, new_y, self.width, self.height):
             self.x = new_x
             self.y = new_y
-            self.last_direction = (dx, dy)
-
-    def shoot(self):
-        proj_x = self.x + self.width // 2 - PROJECTILE_SIZE // 2
-        proj_y = self.y + self.height // 2 - PROJECTILE_SIZE // 2
-        return Projectile(proj_x, proj_y, self.last_direction)
 
     def take_damage(self, amount=1):
         self.health = max(0, self.health - amount)
@@ -431,7 +390,7 @@ def create_levels():
         ],
         'spawn': (1, 1),
         'exit': (23, 11),
-        'enemy_count': 3
+        'enemy_count': 2
     }
     levels.append(level2)
     
@@ -455,7 +414,7 @@ def create_levels():
         ],
         'spawn': (1, 1),
         'exit': (23, 11),
-        'enemy_count': 6
+        'enemy_count': 4
     }
     levels.append(level3)
     
@@ -483,9 +442,6 @@ class Game:
         self.enemies = []
         self.spawn_enemies()
         self.damage_cooldown = 0
-        
-        self.projectiles = []
-        self.shoot_cooldown = 0
         
         self.game_won = False
         self.game_over = False
@@ -532,9 +488,7 @@ class Game:
         self.player.x = spawn[0] * TILE_SIZE + 4
         self.player.y = spawn[1] * TILE_SIZE + 4
         self.spawn_enemies()
-        self.projectiles = []
         self.damage_cooldown = 0
-        self.shoot_cooldown = 0
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -552,31 +506,10 @@ class Game:
         
         if dx != 0 or dy != 0:
             self.player.move(dx, dy, self.dungeon)
-        
-        if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
-            self.projectiles.append(self.player.shoot())
-            self.shoot_cooldown = 15
 
     def update(self):
         if self.game_won or self.game_over:
             return
-        
-        if self.shoot_cooldown > 0:
-            self.shoot_cooldown -= 1
-        
-        for projectile in self.projectiles:
-            projectile.update(self.dungeon)
-        
-        for projectile in self.projectiles:
-            if not projectile.active:
-                continue
-            for enemy in self.enemies:
-                if projectile.collides_with_enemy(enemy):
-                    projectile.active = False
-                    self.enemies.remove(enemy)
-                    break
-        
-        self.projectiles = [p for p in self.projectiles if p.active]
         
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
@@ -614,9 +547,6 @@ class Game:
             for enemy in self.enemies:
                 enemy.draw(self.screen)
             
-            for projectile in self.projectiles:
-                projectile.draw(self.screen)
-            
             level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
             self.screen.blit(level_text, (10, 10))
             
@@ -627,7 +557,7 @@ class Game:
             hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
             
-            controls_text = self.small_font.render("WASD to move, SPACE to shoot", True, WHITE)
+            controls_text = self.small_font.render("WASD to move", True, WHITE)
             self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
         
         pygame.display.flip()
@@ -647,11 +577,8 @@ class Game:
                         self.player.x = spawn[0] * TILE_SIZE + 4
                         self.player.y = spawn[1] * TILE_SIZE + 4
                         self.player.health = self.player.max_health
-                        self.player.last_direction = (1, 0)
                         self.spawn_enemies()
-                        self.projectiles = []
                         self.damage_cooldown = 0
-                        self.shoot_cooldown = 0
                         self.game_won = False
                         self.game_over = False
             
