@@ -360,6 +360,50 @@ def create_enemy_sprite():
     return sprite
 
 
+def create_ice_enemy_sprite():
+    """Create ice enemy sprite - same as player but blue instead of yellow."""
+    sprite_data = [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 2, 2, 2, 2, 2, 2, 2, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 1, 2, 2, 2, 1, 2, 1],
+        [1, 0, 1, 2, 2, 2, 1, 0, 1],
+        [1, 1, 1, 2, 2, 2, 1, 1, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 2, 2, 1, 1, 1, 2, 2, 1],
+        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [1, 1, 2, 2, 2, 2, 2, 1, 1],
+        [0, 1, 2, 1, 1, 1, 1, 1, 1],
+        [0, 1, 2, 1, 0, 0, 1, 1, 0],
+        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+    ]
+    
+    ice_blue = (100, 180, 255)
+    dark_ice = (50, 100, 150)
+    
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+    
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel == 1:
+                color = dark_ice
+            elif pixel == 2:
+                color = ice_blue
+            else:
+                continue
+            
+            pygame.draw.rect(
+                sprite, color,
+                (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+            )
+    
+    return sprite
+
+
 def find_path(start_tile, end_tile, tiles):
     """A* pathfinding algorithm to find path between two tiles."""
     if start_tile == end_tile:
@@ -466,6 +510,116 @@ class Enemy:
                        int((player.y + player.height // 2) // TILE_SIZE))
         
         self.path = find_path(my_tile, player_tile, dungeon.tiles)
+
+    def draw(self, screen):
+        screen.blit(self.sprite, (self.x, self.y))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
+class EnemyProjectile:
+    def __init__(self, x, y, direction):
+        self.x = x
+        self.y = y
+        self.direction = list(direction)
+        self.speed = 4
+        self.size = 8
+        self.active = True
+
+    def update(self, dungeon):
+        self.x += self.direction[0] * self.speed
+        self.y += self.direction[1] * self.speed
+        
+        if dungeon.is_wall(self.x, self.y, self.size, self.size):
+            self.active = False
+
+    def draw(self, screen):
+        ice_blue = (100, 180, 255)
+        pygame.draw.rect(screen, ice_blue, (self.x, self.y, self.size, self.size))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
+class IceEnemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_ice_enemy_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = ENEMY_SPEED
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 30
+        self.shoot_timer = 0
+        self.shoot_interval = 420
+
+    def move_towards_player(self, player, dungeon):
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+        
+        if not self.path:
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE + TILE_SIZE // 2 - self.width // 2
+        target_y = target_tile[1] * TILE_SIZE + TILE_SIZE // 2 - self.height // 2
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if distance < self.speed:
+            self.x = target_x
+            self.y = target_y
+            self.path.pop(0)
+        else:
+            dx = dx / distance
+            dy = dy / distance
+            
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+            
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        
+        self.path = find_path(my_tile, player_tile, dungeon.tiles)
+
+    def shoot_at_player(self, player):
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_interval:
+            self.shoot_timer = 0
+            
+            dx = player.x - self.x
+            dy = player.y - self.y
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+                
+                proj_x = self.x + self.width // 2 - 4
+                proj_y = self.y + self.height // 2 - 4
+                return EnemyProjectile(proj_x, proj_y, (dx, dy))
+        return None
 
     def draw(self, screen):
         screen.blit(self.sprite, (self.x, self.y))
@@ -1345,6 +1499,7 @@ class Game:
         self.boss = None
         self.final_boss = None
         self.boss_projectiles = []
+        self.enemy_projectiles = []
         self.is_boss_level = False
         self.is_final_boss_level = False
         
@@ -1369,7 +1524,9 @@ class Game:
         self.boss = None
         self.final_boss = None
         self.boss_projectiles = []
+        self.enemy_projectiles = []
         level_data = self.levels[self.current_level]
+        self.current_location = level_data.get('location', 1)
         
         self.is_boss_level = level_data.get('is_boss_level', False)
         self.is_final_boss_level = level_data.get('is_final_boss', False)
@@ -1411,7 +1568,10 @@ class Game:
                 if tiles[tile_y][tile_x] == 0:
                     enemy_x = tile_x * TILE_SIZE + 4
                     enemy_y = tile_y * TILE_SIZE + 4
-                    self.enemies.append(Enemy(enemy_x, enemy_y))
+                    if self.current_location == 2:
+                        self.enemies.append(IceEnemy(enemy_x, enemy_y))
+                    else:
+                        self.enemies.append(Enemy(enemy_x, enemy_y))
                     spawned += 1
 
     def spawn_one_enemy(self):
@@ -1437,7 +1597,10 @@ class Game:
                 if tiles[tile_y][tile_x] == 0:
                     enemy_x = tile_x * TILE_SIZE + 4
                     enemy_y = tile_y * TILE_SIZE + 4
-                    self.enemies.append(Enemy(enemy_x, enemy_y))
+                    if self.current_location == 2:
+                        self.enemies.append(IceEnemy(enemy_x, enemy_y))
+                    else:
+                        self.enemies.append(Enemy(enemy_x, enemy_y))
                     return
 
     def spawn_health_kit(self):
@@ -1478,6 +1641,7 @@ class Game:
         self.player.health = self.player.max_health
         self.spawn_enemies()
         self.projectiles = []
+        self.enemy_projectiles = []
         self.health_kits = []
         self.health_kit_timer = 0
         self.damage_cooldown = 0
@@ -1612,6 +1776,16 @@ class Game:
         
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
+            if isinstance(enemy, IceEnemy):
+                proj = enemy.shoot_at_player(self.player)
+                if proj:
+                    self.enemy_projectiles.append(proj)
+                    SHOOT_SOUND.play()
+        
+        for proj in self.enemy_projectiles:
+            proj.update(self.dungeon)
+        
+        self.enemy_projectiles = [p for p in self.enemy_projectiles if p.active]
         
         if self.damage_cooldown > 0:
             self.damage_cooldown -= 1
@@ -1637,6 +1811,15 @@ class Game:
                 self.damage_cooldown = 60
             
             for proj in self.boss_projectiles:
+                if proj.collides_with_player(self.player):
+                    proj.active = False
+                    if self.player.take_damage():
+                        self.game_over = True
+                    DAMAGE_SOUND.play()
+                    self.damage_cooldown = 60
+                    break
+            
+            for proj in self.enemy_projectiles:
                 if proj.collides_with_player(self.player):
                     proj.active = False
                     if self.player.take_damage():
@@ -1687,6 +1870,9 @@ class Game:
                 projectile.draw(self.screen)
             
             for proj in self.boss_projectiles:
+                proj.draw(self.screen)
+            
+            for proj in self.enemy_projectiles:
                 proj.draw(self.screen)
             
             for kit in self.health_kits:
@@ -1743,6 +1929,7 @@ class Game:
                         self.player.last_direction = (1, 0)
                         self.spawn_enemies()
                         self.projectiles = []
+                        self.enemy_projectiles = []
                         self.health_kits = []
                         self.health_kit_timer = 0
                         self.damage_cooldown = 0
