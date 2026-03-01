@@ -2,6 +2,17 @@
 
 A 2D top-down dungeon crawler game built with Python and Pygame.
 
+## Features
+
+- Custom pixel art character and enemies
+- 4 levels including an epic boss fight
+- WASD/Arrow key movement
+- Shooting mechanics with ricochet
+- Health system with health pack pickups
+- Enemy AI with pathfinding
+- Boss with teleportation abilities
+- Background music and sound effects
+
 ## Requirements
 
 - Python 3.8+
@@ -11,36 +22,48 @@ A 2D top-down dungeon crawler game built with Python and Pygame.
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 ## How to Play
 
-Run the game:
-
 ```bash
-source venv/bin/activate
 python game.py
 ```
 
 ### Controls
 
-- **W** - Move up
-- **A** - Move left
-- **S** - Move down
-- **D** - Move right
+- **WASD / Arrow Keys** - Move
+- **SPACE** - Shoot
 - **ESC** - Quit game
-- **R** - Restart (after winning)
+- **R** - Restart (after game over/win)
 
 ### Objective
 
-Navigate through each dungeon level to find the yellow exit. The game features 3 progressively challenging levels with maze-like layouts.
+Navigate through dungeon levels, defeat enemies, and reach the yellow exit. In the final level, defeat the boss to win!
 
-## Game Features
+## Building Executables
 
-- Green 4-pixel character
-- WASD movement controls
-- 3 dungeon levels with increasing difficulty
-- Collision detection with walls
-- Level progression system
+### Local Build
+
+```bash
+python build.py
+```
+
+The executable will be created in the `dist/` folder.
+
+### GitHub Actions (Windows & macOS)
+
+1. Push your code to GitHub
+2. Go to Actions tab
+3. Run the "Build Game" workflow
+4. Download the artifacts (Windows .exe and macOS app)
+
+## Distribution
+
+After building, share the executable with friends:
+- **Windows**: `dist/DungeonCrawler.exe`
+- **macOS**: `dist/DungeonCrawler`
+
+No Python installation required for your friends!
