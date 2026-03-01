@@ -561,6 +561,11 @@ class IceEnemy:
         self.path_update_interval = 30
         self.shoot_timer = 0
         self.shoot_interval = 420
+        self.health = 2
+    
+    def take_damage(self, amount=1):
+        self.health -= amount
+        return self.health <= 0
 
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
@@ -674,9 +679,8 @@ def create_boss_sprite():
 
 # Final boss settings
 FINAL_BOSS_PIXEL_SIZE = 12
-FINAL_BOSS_HEALTH = 50
+FINAL_BOSS_HEALTH = 30
 FINAL_BOSS_SPEED = 2.0
-FINAL_BOSS_SHOOT_INTERVAL = 60
 
 
 def create_final_boss_sprite():
@@ -910,8 +914,8 @@ class FinalBoss:
         self.speed = FINAL_BOSS_SPEED
         self.max_health = FINAL_BOSS_HEALTH
         self.health = self.max_health
-        self.shoot_timer = 0
-        self.shoot_interval = FINAL_BOSS_SHOOT_INTERVAL
+        self.spawn_timer = 0
+        self.spawn_interval = 300
         self.teleport_timer = 0
         self.teleport_interval = 180
 
@@ -960,22 +964,27 @@ class FinalBoss:
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
                 self.y = new_y
 
-    def shoot_at_player(self, player):
-        self.shoot_timer += 1
-        if self.shoot_timer >= self.shoot_interval:
-            self.shoot_timer = 0
-            
-            dx = player.x - self.x
-            dy = player.y - self.y
-            distance = (dx ** 2 + dy ** 2) ** 0.5
-            
-            if distance > 0:
-                dx = dx / distance
-                dy = dy / distance
-                
-                proj_x = self.x + self.width // 2 - BOSS_PROJECTILE_SIZE // 2
-                proj_y = self.y + self.height // 2 - BOSS_PROJECTILE_SIZE // 2
-                return BossProjectile(proj_x, proj_y, (dx, dy))
+    def should_spawn_enemy(self):
+        self.spawn_timer += 1
+        if self.spawn_timer >= self.spawn_interval:
+            self.spawn_timer = 0
+            return True
+        return False
+    
+    def get_spawn_position(self, dungeon):
+        import random
+        valid_positions = []
+        for tile_y in range(len(dungeon.tiles)):
+            for tile_x in range(len(dungeon.tiles[0])):
+                if dungeon.tiles[tile_y][tile_x] == 0:
+                    pos_x = tile_x * TILE_SIZE + 4
+                    pos_y = tile_y * TILE_SIZE + 4
+                    dist_to_boss = ((pos_x - self.x) ** 2 + (pos_y - self.y) ** 2) ** 0.5
+                    if dist_to_boss < 150 and dist_to_boss > 50:
+                        valid_positions.append((pos_x, pos_y))
+        
+        if valid_positions:
+            return random.choice(valid_positions)
         return None
 
     def take_damage(self, amount=1):
@@ -1073,6 +1082,86 @@ class Projectile:
 
     def collides_with_enemy(self, enemy):
         return self.get_rect().colliderect(enemy.get_rect())
+
+
+class IceProjectile:
+    """Piercing ice bullet - goes through enemies and deals damage to all in path."""
+    def __init__(self, x, y, direction):
+        self.x = x
+        self.y = y
+        self.direction = list(direction)
+        self.speed = PROJECTILE_SPEED + 2
+        self.size = 8
+        self.active = True
+        self.has_ricocheted = False
+        self.ricochet_timer = 0
+        self.ricochet_lifetime = 180
+        self.hit_enemies = set()
+
+    def update(self, dungeon):
+        if self.has_ricocheted:
+            self.ricochet_timer += 1
+            if self.ricochet_timer >= self.ricochet_lifetime:
+                self.active = False
+                return
+        
+        new_x = self.x + self.direction[0] * self.speed
+        new_y = self.y + self.direction[1] * self.speed
+        
+        tile_x = int((new_x + self.size // 2) // TILE_SIZE)
+        tile_y = int((new_y + self.size // 2) // TILE_SIZE)
+        
+        if tile_x < 0 or tile_x >= dungeon.width or tile_y < 0 or tile_y >= dungeon.height:
+            self.active = False
+            return
+        
+        if dungeon.tiles[tile_y][tile_x] == 1:
+            is_diagonal = self.direction[0] != 0 and self.direction[1] != 0
+            
+            if is_diagonal and not self.has_ricocheted:
+                old_tile_x = int((self.x + self.size // 2) // TILE_SIZE)
+                old_tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+                
+                check_x = int((self.x + self.direction[0] * self.speed + self.size // 2) // TILE_SIZE)
+                check_y = old_tile_y
+                hit_x = check_x >= 0 and check_x < dungeon.width and dungeon.tiles[check_y][check_x] == 1
+                
+                check_y = int((self.y + self.direction[1] * self.speed + self.size // 2) // TILE_SIZE)
+                check_x = old_tile_x
+                hit_y = check_y >= 0 and check_y < dungeon.height and dungeon.tiles[check_y][check_x] == 1
+                
+                if hit_x and not hit_y:
+                    self.direction[0] = -self.direction[0]
+                elif hit_y and not hit_x:
+                    self.direction[1] = -self.direction[1]
+                else:
+                    self.direction[0] = -self.direction[0]
+                    self.direction[1] = -self.direction[1]
+                
+                self.has_ricocheted = True
+            else:
+                self.active = False
+            return
+        
+        self.x = new_x
+        self.y = new_y
+
+    def draw(self, screen):
+        cyan = (0, 255, 255)
+        pygame.draw.rect(screen, cyan, (self.x, self.y, self.size, self.size))
+        light_cyan = (150, 255, 255)
+        pygame.draw.rect(screen, light_cyan, (self.x + 2, self.y + 2, self.size - 4, self.size - 4))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
+
+    def collides_with_enemy(self, enemy):
+        if id(enemy) in self.hit_enemies:
+            return False
+        if self.get_rect().colliderect(enemy.get_rect()):
+            self.hit_enemies.add(id(enemy))
+            return True
+        return False
 
 
 class HealthKit:
@@ -1338,21 +1427,21 @@ def create_levels():
     
     # === LOCATION 2: Ice Caves (after boss checkpoint) ===
     
-    # Level 5 - Ice Cave Entrance
+    # Level 5 - Ice Cave Entrance (Winding Path)
     level5 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
-            [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
@@ -1363,22 +1452,22 @@ def create_levels():
     }
     levels.append(level5)
     
-    # Level 6 - Frozen Corridors
+    # Level 6 - Frozen Maze (Complex Corridors)
     level6 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
         'spawn': (1, 1),
@@ -1388,22 +1477,22 @@ def create_levels():
     }
     levels.append(level6)
     
-    # Level 7 - Crystal Cavern
+    # Level 7 - Crystal Labyrinth (Dead Ends)
     level7 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
-            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
-            [1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
         'spawn': (1, 1),
@@ -1413,26 +1502,26 @@ def create_levels():
     }
     levels.append(level7)
     
-    # Level 8 - Icy Labyrinth
+    # Level 8 - Icy Nightmare (Ultimate Maze)
     level8 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
         'spawn': (1, 1),
-        'exit': (23, 11),
+        'exit': (23, 12),
         'enemy_count': 6,
         'location': 2
     }
@@ -1479,6 +1568,7 @@ class Game:
         self.levels = create_levels()
         self.current_level = 0
         self.checkpoint_level = 0
+        self.ice_bullet_unlocked = False
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
         
         spawn = self.dungeon.spawn_point
@@ -1638,7 +1728,6 @@ class Game:
         spawn = self.dungeon.spawn_point
         self.player.x = spawn[0] * TILE_SIZE + 4
         self.player.y = spawn[1] * TILE_SIZE + 4
-        self.player.health = self.player.max_health
         self.spawn_enemies()
         self.projectiles = []
         self.enemy_projectiles = []
@@ -1679,7 +1768,12 @@ class Game:
             self.player.move(dx, dy, self.dungeon)
         
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
-            self.projectiles.append(self.player.shoot())
+            if self.ice_bullet_unlocked:
+                proj_x = self.player.x + self.player.width // 2 - 4
+                proj_y = self.player.y + self.player.height // 2 - 4
+                self.projectiles.append(IceProjectile(proj_x, proj_y, self.player.last_direction))
+            else:
+                self.projectiles.append(self.player.shoot())
             self.shoot_cooldown = 15
             SHOOT_SOUND.play()
 
@@ -1718,21 +1812,34 @@ class Game:
         for projectile in self.projectiles:
             if not projectile.active:
                 continue
-            for enemy in self.enemies:
+            for enemy in self.enemies[:]:
                 if projectile.collides_with_enemy(enemy):
-                    projectile.active = False
-                    self.enemies.remove(enemy)
-                    KILL_SOUND.play()
-                    break
+                    if not isinstance(projectile, IceProjectile):
+                        projectile.active = False
+                    
+                    if hasattr(enemy, 'take_damage'):
+                        if enemy.take_damage(1):
+                            self.enemies.remove(enemy)
+                            KILL_SOUND.play()
+                        else:
+                            DAMAGE_SOUND.play()
+                    else:
+                        self.enemies.remove(enemy)
+                        KILL_SOUND.play()
+                    
+                    if not isinstance(projectile, IceProjectile):
+                        break
         
         if self.boss:
             for projectile in self.projectiles:
                 if not projectile.active:
                     continue
                 if projectile.get_rect().colliderect(self.boss.get_rect()):
-                    projectile.active = False
+                    if not isinstance(projectile, IceProjectile):
+                        projectile.active = False
                     if self.boss.take_damage(1):
                         self.boss = None
+                        self.ice_bullet_unlocked = True
                         self.next_level()
                         KILL_SOUND.play()
                     break
@@ -1742,7 +1849,8 @@ class Game:
                 if not projectile.active:
                     continue
                 if projectile.get_rect().colliderect(self.final_boss.get_rect()):
-                    projectile.active = False
+                    if not isinstance(projectile, IceProjectile):
+                        projectile.active = False
                     if self.final_boss.take_damage(1):
                         self.final_boss = None
                         self.game_won = True
@@ -1764,10 +1872,10 @@ class Game:
         if self.final_boss:
             self.final_boss.move_towards_player(self.player, self.dungeon)
             self.final_boss.teleport(self.player, self.dungeon)
-            boss_proj = self.final_boss.shoot_at_player(self.player)
-            if boss_proj:
-                self.boss_projectiles.append(boss_proj)
-                SHOOT_SOUND.play()
+            if self.final_boss.should_spawn_enemy():
+                spawn_pos = self.final_boss.get_spawn_position(self.dungeon)
+                if spawn_pos:
+                    self.enemies.append(IceEnemy(spawn_pos[0], spawn_pos[1]))
         
         for proj in self.boss_projectiles:
             proj.update(self.dungeon)
@@ -1894,6 +2002,10 @@ class Game:
             self.screen.blit(health_label, (SCREEN_WIDTH - 140, 10))
             self.player.draw_health(self.screen, SCREEN_WIDTH - 110, 8)
             
+            if self.ice_bullet_unlocked:
+                bullet_text = self.small_font.render("ICE BULLET", True, (0, 255, 255))
+                self.screen.blit(bullet_text, (SCREEN_WIDTH - 110, 35))
+            
             if self.is_final_boss_level:
                 hint_text = self.small_font.render("Defeat the Final Boss to escape!", True, FINAL_BOSS_COLOR)
             elif self.is_boss_level:
@@ -1919,6 +2031,7 @@ class Game:
                         if self.game_won:
                             self.current_level = 0
                             self.checkpoint_level = 0
+                            self.ice_bullet_unlocked = False
                         else:
                             self.current_level = self.checkpoint_level
                         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
