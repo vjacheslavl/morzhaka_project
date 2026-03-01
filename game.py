@@ -105,31 +105,47 @@ def create_boss_music():
     import array
     import math
     sample_rate = 22050
-    duration = 6.0
+    duration = 3.0
     n_samples = int(sample_rate * duration)
     buf = array.array('h', [0] * n_samples)
     
-    notes = [110.00, 116.54, 130.81, 146.83, 155.56, 174.61, 196.00, 207.65]
-    melody = [0, 0, 2, 2, 4, 5, 4, 2, 0, 5, 7, 5, 4, 2, 0, 0]
-    note_duration = duration / len(melody)
+    power_chords = [55.00, 61.74, 55.00, 73.42, 55.00, 82.41, 73.42, 55.00]
+    note_duration = duration / len(power_chords)
     
     for i in range(n_samples):
         t = i / sample_rate
-        note_idx = int(t / note_duration) % len(melody)
-        freq = notes[melody[note_idx]]
+        note_idx = int(t / note_duration) % len(power_chords)
+        root = power_chords[note_idx]
+        fifth = root * 1.5
+        octave = root * 2
         
-        bass_freq = freq / 2
-        val = int(2000 * math.sin(2 * math.pi * freq * t))
-        val += int(1800 * math.sin(2 * math.pi * bass_freq * t))
-        val += int(800 * math.sin(2 * math.pi * freq * 2 * t))
-        val += int(600 * math.sin(2 * math.pi * freq * 0.5 * t + math.sin(t * 8)))
+        guitar = math.sin(2 * math.pi * root * t)
+        guitar += 0.9 * math.sin(2 * math.pi * fifth * t)
+        guitar += 0.7 * math.sin(2 * math.pi * octave * t)
+        guitar += 0.5 * math.sin(2 * math.pi * root * 0.5 * t)
         
-        drum_beat = 1.0 + 0.3 * (1 if int(t * 4) % 2 == 0 else 0)
-        envelope = min(1.0, (t % note_duration) * 15) * max(0.5, 1 - (t % note_duration) / note_duration)
-        buf[i] = int(val * envelope * drum_beat * 0.35)
+        distortion = math.tanh(guitar * 4) * 0.8
+        
+        for h in range(2, 10):
+            distortion += 0.2 * math.sin(2 * math.pi * root * h * t + math.sin(t * 5)) / h
+        
+        beat_pos = (t * 6) % 1
+        kick = 0
+        if beat_pos < 0.08:
+            kick = math.sin(2 * math.pi * 50 * beat_pos) * (1 - beat_pos * 12) * 1.0
+        snare = 0
+        if int(t * 6) % 2 == 1 and beat_pos < 0.04:
+            snare = (hash(int(t * 10000)) % 1000 / 500 - 1) * 0.6
+        double_kick = 0
+        if int(t * 12) % 4 == 3 and (t * 12) % 1 < 0.1:
+            double_kick = math.sin(2 * math.pi * 55 * ((t * 12) % 1)) * 0.5
+        
+        envelope = min(1.0, (t % note_duration) * 30) * max(0.7, 1 - (t % note_duration) / note_duration * 0.4)
+        val = int((distortion * 3000 + kick * 3500 + snare * 2500 + double_kick * 2000) * envelope)
+        buf[i] = max(-32767, min(32767, val))
     
     sound = pygame.mixer.Sound(buffer=buf)
-    sound.set_volume(0.3)
+    sound.set_volume(0.35)
     return sound
 
 BACKGROUND_MUSIC = create_background_music()
@@ -503,6 +519,33 @@ class Boss:
         self.health = self.max_health
         self.shoot_timer = 0
         self.shoot_interval = BOSS_SHOOT_INTERVAL
+        self.teleport_timer = 0
+        self.teleport_interval = 300
+
+    def teleport(self, player, dungeon):
+        import random
+        self.teleport_timer += 1
+        if self.teleport_timer < self.teleport_interval:
+            return
+        
+        self.teleport_timer = 0
+        
+        valid_positions = []
+        for tile_y in range(len(dungeon.tiles)):
+            for tile_x in range(len(dungeon.tiles[0])):
+                if dungeon.tiles[tile_y][tile_x] == 0:
+                    pos_x = tile_x * TILE_SIZE
+                    pos_y = tile_y * TILE_SIZE
+                    
+                    if not dungeon.is_wall(pos_x, pos_y, self.width, self.height):
+                        dist_to_player = ((pos_x - player.x) ** 2 + (pos_y - player.y) ** 2) ** 0.5
+                        if dist_to_player > 150:
+                            valid_positions.append((pos_x, pos_y))
+        
+        if valid_positions:
+            new_pos = random.choice(valid_positions)
+            self.x = new_pos[0]
+            self.y = new_pos[1]
 
     def move_towards_player(self, player, dungeon):
         dx = player.x - self.x
@@ -924,7 +967,7 @@ class Game:
         
         self.health_kits = []
         self.health_kit_timer = 0
-        self.health_kit_interval = 1200
+        self.health_kit_interval = 900
         
         self.game_won = False
         self.game_over = False
@@ -1131,6 +1174,7 @@ class Game:
         
         if self.boss:
             self.boss.move_towards_player(self.player, self.dungeon)
+            self.boss.teleport(self.player, self.dungeon)
             boss_proj = self.boss.shoot_at_player(self.player)
             if boss_proj:
                 self.boss_projectiles.append(boss_proj)
