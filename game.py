@@ -4,6 +4,41 @@ import heapq
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()
+
+# Sound effects
+def create_shoot_sound():
+    sample_rate = 22050
+    duration = 0.1
+    import array
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    for i in range(n_samples):
+        t = i / sample_rate
+        freq = 800 - (t * 4000)
+        import math
+        buf[i] = int(4000 * math.sin(2 * math.pi * freq * t) * (1 - t / duration))
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.3)
+    return sound
+
+def create_damage_sound():
+    sample_rate = 22050
+    duration = 0.15
+    import array
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    for i in range(n_samples):
+        t = i / sample_rate
+        freq = 200 + (t * 100)
+        import math
+        buf[i] = int(6000 * math.sin(2 * math.pi * freq * t) * (1 - t / duration))
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.4)
+    return sound
+
+SHOOT_SOUND = create_shoot_sound()
+DAMAGE_SOUND = create_damage_sound()
 
 # Screen settings
 SCREEN_WIDTH = 1200
@@ -286,27 +321,69 @@ class BossProjectile:
     def __init__(self, x, y, direction):
         self.x = x
         self.y = y
-        self.direction = direction
+        self.direction = list(direction)
         self.speed = BOSS_PROJECTILE_SPEED
         self.size = BOSS_PROJECTILE_SIZE
         self.active = True
+        self.has_ricocheted = False
+        self.ricochet_timer = 0
+        self.ricochet_lifetime = 180
 
     def update(self, dungeon):
-        self.x += self.direction[0] * self.speed
-        self.y += self.direction[1] * self.speed
+        if self.has_ricocheted:
+            self.ricochet_timer += 1
+            if self.ricochet_timer >= self.ricochet_lifetime:
+                self.active = False
+                return
         
-        if (self.x < 0 or self.x > SCREEN_WIDTH or
-            self.y < 0 or self.y > SCREEN_HEIGHT):
+        new_x = self.x + self.direction[0] * self.speed
+        new_y = self.y + self.direction[1] * self.speed
+        
+        if (new_x < 0 or new_x > SCREEN_WIDTH or
+            new_y < 0 or new_y > SCREEN_HEIGHT):
             self.active = False
             return
         
-        tile_x = int((self.x + self.size // 2) // TILE_SIZE)
-        tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+        tile_x = int((new_x + self.size // 2) // TILE_SIZE)
+        tile_y = int((new_y + self.size // 2) // TILE_SIZE)
         
-        if (tile_x < 0 or tile_x >= dungeon.width or
-            tile_y < 0 or tile_y >= dungeon.height or
-            dungeon.tiles[tile_y][tile_x] == 1):
+        if tile_x < 0 or tile_x >= dungeon.width or tile_y < 0 or tile_y >= dungeon.height:
             self.active = False
+            return
+        
+        if dungeon.tiles[tile_y][tile_x] == 1:
+            is_diagonal = self.direction[0] != 0 and self.direction[1] != 0
+            
+            if is_diagonal and not self.has_ricocheted:
+                old_tile_x = int((self.x + self.size // 2) // TILE_SIZE)
+                old_tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+                
+                check_x = int((self.x + self.direction[0] * self.speed + self.size // 2) // TILE_SIZE)
+                check_y = old_tile_y
+                hit_x = check_x >= 0 and check_x < dungeon.width and dungeon.tiles[check_y][check_x] == 1
+                
+                check_y = int((self.y + self.direction[1] * self.speed + self.size // 2) // TILE_SIZE)
+                check_x = old_tile_x
+                hit_y = check_y >= 0 and check_y < dungeon.height and dungeon.tiles[check_y][check_x] == 1
+                
+                if hit_x and hit_y:
+                    self.direction[0] = -self.direction[0]
+                    self.direction[1] = -self.direction[1]
+                elif hit_x:
+                    self.direction[0] = -self.direction[0]
+                elif hit_y:
+                    self.direction[1] = -self.direction[1]
+                else:
+                    self.direction[0] = -self.direction[0]
+                    self.direction[1] = -self.direction[1]
+                
+                self.has_ricocheted = True
+            else:
+                self.active = False
+            return
+        
+        self.x = new_x
+        self.y = new_y
 
     def draw(self, screen):
         pygame.draw.rect(screen, RED, (self.x, self.y, self.size, self.size))
@@ -397,22 +474,64 @@ class Projectile:
     def __init__(self, x, y, direction):
         self.x = x
         self.y = y
-        self.direction = direction
+        self.direction = list(direction)
         self.speed = PROJECTILE_SPEED
         self.size = PROJECTILE_SIZE
         self.active = True
+        self.has_ricocheted = False
+        self.ricochet_timer = 0
+        self.ricochet_lifetime = 180
 
     def update(self, dungeon):
-        self.x += self.direction[0] * self.speed
-        self.y += self.direction[1] * self.speed
+        if self.has_ricocheted:
+            self.ricochet_timer += 1
+            if self.ricochet_timer >= self.ricochet_lifetime:
+                self.active = False
+                return
         
-        tile_x = int((self.x + self.size // 2) // TILE_SIZE)
-        tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+        new_x = self.x + self.direction[0] * self.speed
+        new_y = self.y + self.direction[1] * self.speed
         
-        if (tile_x < 0 or tile_x >= dungeon.width or
-            tile_y < 0 or tile_y >= dungeon.height or
-            dungeon.tiles[tile_y][tile_x] == 1):
+        tile_x = int((new_x + self.size // 2) // TILE_SIZE)
+        tile_y = int((new_y + self.size // 2) // TILE_SIZE)
+        
+        if tile_x < 0 or tile_x >= dungeon.width or tile_y < 0 or tile_y >= dungeon.height:
             self.active = False
+            return
+        
+        if dungeon.tiles[tile_y][tile_x] == 1:
+            is_diagonal = self.direction[0] != 0 and self.direction[1] != 0
+            
+            if is_diagonal and not self.has_ricocheted:
+                old_tile_x = int((self.x + self.size // 2) // TILE_SIZE)
+                old_tile_y = int((self.y + self.size // 2) // TILE_SIZE)
+                
+                check_x = int((self.x + self.direction[0] * self.speed + self.size // 2) // TILE_SIZE)
+                check_y = old_tile_y
+                hit_x = check_x >= 0 and check_x < dungeon.width and dungeon.tiles[check_y][check_x] == 1
+                
+                check_y = int((self.y + self.direction[1] * self.speed + self.size // 2) // TILE_SIZE)
+                check_x = old_tile_x
+                hit_y = check_y >= 0 and check_y < dungeon.height and dungeon.tiles[check_y][check_x] == 1
+                
+                if hit_x and hit_y:
+                    self.direction[0] = -self.direction[0]
+                    self.direction[1] = -self.direction[1]
+                elif hit_x:
+                    self.direction[0] = -self.direction[0]
+                elif hit_y:
+                    self.direction[1] = -self.direction[1]
+                else:
+                    self.direction[0] = -self.direction[0]
+                    self.direction[1] = -self.direction[1]
+                
+                self.has_ricocheted = True
+            else:
+                self.active = False
+            return
+        
+        self.x = new_x
+        self.y = new_y
 
     def draw(self, screen):
         pygame.draw.rect(screen, PURPLE, (self.x, self.y, self.size, self.size))
@@ -796,6 +915,7 @@ class Game:
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
             self.projectiles.append(self.player.shoot())
             self.shoot_cooldown = 15
+            SHOOT_SOUND.play()
 
     def update(self):
         if self.game_won or self.game_over:
@@ -840,6 +960,7 @@ class Game:
             boss_proj = self.boss.shoot_at_player(self.player)
             if boss_proj:
                 self.boss_projectiles.append(boss_proj)
+                SHOOT_SOUND.play()
         
         for proj in self.boss_projectiles:
             proj.update(self.dungeon)
@@ -856,12 +977,14 @@ class Game:
                 if enemy.collides_with_player(self.player):
                     if self.player.take_damage():
                         self.game_over = True
+                    DAMAGE_SOUND.play()
                     self.damage_cooldown = 60
                     break
             
             if self.boss and self.boss.collides_with_player(self.player):
                 if self.player.take_damage():
                     self.game_over = True
+                DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
             
             for proj in self.boss_projectiles:
@@ -869,6 +992,7 @@ class Game:
                     proj.active = False
                     if self.player.take_damage():
                         self.game_over = True
+                    DAMAGE_SOUND.play()
                     self.damage_cooldown = 60
                     break
         
