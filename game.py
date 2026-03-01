@@ -37,8 +37,104 @@ def create_damage_sound():
     sound.set_volume(0.4)
     return sound
 
+def create_kill_sound():
+    sample_rate = 22050
+    duration = 0.2
+    import array
+    import math
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    for i in range(n_samples):
+        t = i / sample_rate
+        freq = 400 + (t * 800)
+        buf[i] = int(5000 * math.sin(2 * math.pi * freq * t) * (1 - t / duration))
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.4)
+    return sound
+
+def create_heal_sound():
+    sample_rate = 22050
+    duration = 0.25
+    import array
+    import math
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    for i in range(n_samples):
+        t = i / sample_rate
+        freq = 600 + (t * 400)
+        buf[i] = int(3000 * math.sin(2 * math.pi * freq * t) * math.sin(math.pi * t / duration))
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.4)
+    return sound
+
 SHOOT_SOUND = create_shoot_sound()
 DAMAGE_SOUND = create_damage_sound()
+KILL_SOUND = create_kill_sound()
+HEAL_SOUND = create_heal_sound()
+
+def create_background_music():
+    import array
+    import math
+    sample_rate = 22050
+    duration = 8.0
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    notes = [130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63]
+    melody = [0, 2, 4, 5, 4, 2, 3, 1, 0, 4, 5, 7, 5, 4, 2, 0]
+    note_duration = duration / len(melody)
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        note_idx = int(t / note_duration) % len(melody)
+        freq = notes[melody[note_idx]]
+        
+        bass_freq = freq / 2
+        val = int(1500 * math.sin(2 * math.pi * freq * t))
+        val += int(1000 * math.sin(2 * math.pi * bass_freq * t))
+        val += int(500 * math.sin(2 * math.pi * freq * 1.5 * t))
+        
+        envelope = min(1.0, (t % note_duration) * 10) * max(0.3, 1 - (t % note_duration) / note_duration)
+        buf[i] = int(val * envelope * 0.4)
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.25)
+    return sound
+
+def create_boss_music():
+    import array
+    import math
+    sample_rate = 22050
+    duration = 6.0
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    notes = [110.00, 116.54, 130.81, 146.83, 155.56, 174.61, 196.00, 207.65]
+    melody = [0, 0, 2, 2, 4, 5, 4, 2, 0, 5, 7, 5, 4, 2, 0, 0]
+    note_duration = duration / len(melody)
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        note_idx = int(t / note_duration) % len(melody)
+        freq = notes[melody[note_idx]]
+        
+        bass_freq = freq / 2
+        val = int(2000 * math.sin(2 * math.pi * freq * t))
+        val += int(1800 * math.sin(2 * math.pi * bass_freq * t))
+        val += int(800 * math.sin(2 * math.pi * freq * 2 * t))
+        val += int(600 * math.sin(2 * math.pi * freq * 0.5 * t + math.sin(t * 8)))
+        
+        drum_beat = 1.0 + 0.3 * (1 if int(t * 4) % 2 == 0 else 0)
+        envelope = min(1.0, (t % note_duration) * 15) * max(0.5, 1 - (t % note_duration) / note_duration)
+        buf[i] = int(val * envelope * drum_beat * 0.35)
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.3)
+    return sound
+
+BACKGROUND_MUSIC = create_background_music()
+BOSS_MUSIC = create_boss_music()
+current_music = None
 
 # Screen settings
 SCREEN_WIDTH = 1200
@@ -543,6 +639,26 @@ class Projectile:
         return self.get_rect().colliderect(enemy.get_rect())
 
 
+class HealthKit:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.size = 20
+        self.active = True
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, WHITE, (self.x, self.y, self.size, self.size))
+        pygame.draw.rect(screen, GREEN, (self.x + 2, self.y + 2, self.size - 4, self.size - 4))
+        pygame.draw.rect(screen, WHITE, (self.x + 7, self.y + 4, 6, 12))
+        pygame.draw.rect(screen, WHITE, (self.x + 4, self.y + 7, 12, 6))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.size, self.size)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+
 class Player:
     def __init__(self, x, y):
         self.x = x
@@ -806,9 +922,21 @@ class Game:
         self.boss_projectiles = []
         self.is_boss_level = False
         
+        self.health_kits = []
+        self.health_kit_timer = 0
+        self.health_kit_interval = 1200
+        
         self.game_won = False
         self.game_over = False
         self.running = True
+        self.current_music = None
+        self.play_music(BACKGROUND_MUSIC)
+
+    def play_music(self, music):
+        if self.current_music:
+            self.current_music.stop()
+        self.current_music = music
+        self.current_music.play(-1)
 
     def spawn_enemies(self):
         self.enemies = []
@@ -878,11 +1006,30 @@ class Game:
                     self.enemies.append(Enemy(enemy_x, enemy_y))
                     return
 
+    def spawn_health_kit(self):
+        import random
+        level_data = self.levels[self.current_level]
+        tiles = level_data['tiles']
+        
+        valid_positions = []
+        for y in range(len(tiles)):
+            for x in range(len(tiles[0])):
+                if tiles[y][x] == 0:
+                    valid_positions.append((x, y))
+        
+        if valid_positions:
+            pos = random.choice(valid_positions)
+            kit_x = pos[0] * TILE_SIZE + (TILE_SIZE - 20) // 2
+            kit_y = pos[1] * TILE_SIZE + (TILE_SIZE - 20) // 2
+            self.health_kits.append(HealthKit(kit_x, kit_y))
+
     def next_level(self):
         self.current_level += 1
         
         if self.current_level >= len(self.levels):
             self.game_won = True
+            if self.current_music:
+                self.current_music.stop()
             return
         
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
@@ -891,22 +1038,29 @@ class Game:
         self.player.y = spawn[1] * TILE_SIZE + 4
         self.spawn_enemies()
         self.projectiles = []
+        self.health_kits = []
+        self.health_kit_timer = 0
         self.damage_cooldown = 0
         self.shoot_cooldown = 0
         self.enemy_spawn_timer = 0
+        
+        if self.is_boss_level:
+            self.play_music(BOSS_MUSIC)
+        else:
+            self.play_music(BACKGROUND_MUSIC)
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
         
         dx, dy = 0, 0
         
-        if keys[pygame.K_w]:
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
             dy = -1
-        if keys[pygame.K_s]:
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
             dy = 1
-        if keys[pygame.K_a]:
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             dx = -1
-        if keys[pygame.K_d]:
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             dx = 1
         
         if dx != 0 or dy != 0:
@@ -919,6 +1073,9 @@ class Game:
 
     def update(self):
         if self.game_won or self.game_over:
+            if self.current_music:
+                self.current_music.stop()
+                self.current_music = None
             return
         
         if self.shoot_cooldown > 0:
@@ -930,6 +1087,19 @@ class Game:
                 self.enemy_spawn_timer = 0
                 self.spawn_one_enemy()
         
+        self.health_kit_timer += 1
+        if self.health_kit_timer >= self.health_kit_interval:
+            self.health_kit_timer = 0
+            self.spawn_health_kit()
+        
+        for kit in self.health_kits:
+            if kit.collides_with_player(self.player):
+                if self.player.health < self.player.max_health:
+                    self.player.heal(1)
+                    HEAL_SOUND.play()
+                kit.active = False
+        self.health_kits = [k for k in self.health_kits if k.active]
+        
         for projectile in self.projectiles:
             projectile.update(self.dungeon)
         
@@ -940,6 +1110,7 @@ class Game:
                 if projectile.collides_with_enemy(enemy):
                     projectile.active = False
                     self.enemies.remove(enemy)
+                    KILL_SOUND.play()
                     break
         
         if self.boss:
@@ -951,6 +1122,9 @@ class Game:
                     if self.boss.take_damage(1):
                         self.boss = None
                         self.game_won = True
+                        KILL_SOUND.play()
+                        if self.current_music:
+                            self.current_music.stop()
                     break
         
         self.projectiles = [p for p in self.projectiles if p.active]
@@ -1028,6 +1202,9 @@ class Game:
             for proj in self.boss_projectiles:
                 proj.draw(self.screen)
             
+            for kit in self.health_kits:
+                kit.draw(self.screen)
+            
             if self.is_boss_level:
                 level_text = self.font.render("BOSS FIGHT!", True, RED)
             else:
@@ -1044,7 +1221,7 @@ class Game:
                 hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
             
-            controls_text = self.small_font.render("WASD to move, SPACE to shoot", True, WHITE)
+            controls_text = self.small_font.render("WASD/Arrows to move, SPACE to shoot", True, WHITE)
             self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
         
         pygame.display.flip()
@@ -1067,11 +1244,14 @@ class Game:
                         self.player.last_direction = (1, 0)
                         self.spawn_enemies()
                         self.projectiles = []
+                        self.health_kits = []
+                        self.health_kit_timer = 0
                         self.damage_cooldown = 0
                         self.shoot_cooldown = 0
                         self.enemy_spawn_timer = 0
                         self.game_won = False
                         self.game_over = False
+                        self.play_music(BACKGROUND_MUSIC)
             
             self.handle_input()
             self.update()
