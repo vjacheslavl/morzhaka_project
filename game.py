@@ -278,44 +278,57 @@ BOSS_SHOOT_INTERVAL = 90
 
 
 def create_player_sprite():
-    """Create pixel art character sprite based on hand-drawn design."""
-    # 0 = transparent, 1 = blue (outline), 2 = yellow (fill)
+    """Create pixel art character sprite based on 12x12 image."""
+    # 0 = transparent, 1 = tan/beige skin, 2 = dark blue eyes, 3 = white body
+    # 4 = red weapon, 5 = brown accent, 6 = light blue boots
     sprite_data = [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 1, 2, 2, 2, 1, 2, 1],
-        [1, 0, 1, 2, 2, 2, 1, 0, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
         [1, 2, 2, 1, 1, 1, 2, 2, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 1, 2, 2, 2, 2, 2, 1, 1],
-        [0, 1, 2, 1, 1, 1, 1, 1, 1],
-        [0, 1, 2, 1, 0, 0, 1, 1, 0],
-        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
     
+    tan_skin = (212, 184, 150)
+    dark_blue_eyes = (26, 74, 110)
+    white_body = (245, 245, 240)
+    red_weapon = (200, 60, 60)
+    brown_accent = (139, 105, 20)
+    light_blue = (135, 180, 220)
+
     width = len(sprite_data[0]) * PIXEL_SIZE
     height = len(sprite_data) * PIXEL_SIZE
-    
+
     sprite = pygame.Surface((width, height), pygame.SRCALPHA)
-    
+
     for y, row in enumerate(sprite_data):
         for x, pixel in enumerate(row):
             if pixel == 1:
-                color = BLUE
+                color = tan_skin
             elif pixel == 2:
-                color = YELLOW
+                color = dark_blue_eyes
+            elif pixel == 3:
+                color = white_body
+            elif pixel == 4:
+                color = red_weapon
+            elif pixel == 5:
+                color = brown_accent
+            elif pixel == 6:
+                color = light_blue
             else:
                 continue
-            
+
             pygame.draw.rect(
                 sprite, color,
                 (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
             )
-    
+
     return sprite
 
 
