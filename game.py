@@ -67,10 +67,53 @@ def create_heal_sound():
     sound.set_volume(0.4)
     return sound
 
+def create_victory_sound():
+    sample_rate = 22050
+    duration = 2.0
+    import array
+    import math
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    ta_duration = 0.25
+    da_start = 0.3
+    
+    ta_freq = 392.00
+    da_chord = [523.25, 659.25, 783.99, 1046.50]
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        val = 0
+        
+        if t < ta_duration:
+            envelope = min(1.0, t * 40) * max(0.0, 1 - t / ta_duration)
+            val = math.sin(2 * math.pi * ta_freq * t)
+            val += 0.5 * math.sin(2 * math.pi * ta_freq * 2 * t)
+            val *= envelope * 0.7
+        
+        if t >= da_start:
+            chord_t = t - da_start
+            chord_duration = duration - da_start
+            envelope = min(1.0, chord_t * 15) * max(0.0, 1 - (chord_t / chord_duration) * 0.6)
+            
+            chord_val = 0
+            for freq in da_chord:
+                chord_val += math.sin(2 * math.pi * freq * t)
+                chord_val += 0.3 * math.sin(2 * math.pi * freq * 2 * t)
+            chord_val /= len(da_chord)
+            val += chord_val * envelope
+        
+        buf[i] = int(4500 * val)
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.5)
+    return sound
+
 SHOOT_SOUND = create_shoot_sound()
 DAMAGE_SOUND = create_damage_sound()
 KILL_SOUND = create_kill_sound()
 HEAL_SOUND = create_heal_sound()
+VICTORY_SOUND = create_victory_sound()
 
 def create_background_music():
     import array
@@ -353,23 +396,36 @@ def create_player_sprite():
 
 
 def create_enemy_sprite():
-    """Create enemy sprite - same as player but red instead of yellow."""
+    """Create enemy sprite - same design as player but with red skin."""
+    # 0 = transparent, 1 = red skin (instead of tan), 2 = dark eyes, 3 = white body
+    # 5 = dark red accent (instead of brown), 6 = dark boots
     sprite_data = [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 1, 2, 2, 2, 1, 2, 1],
-        [1, 0, 1, 2, 2, 2, 1, 0, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 2, 2, 1, 1, 1, 2, 2, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 1, 2, 2, 2, 2, 2, 1, 1],
-        [0, 1, 2, 1, 1, 1, 1, 1, 1],
-        [0, 1, 2, 1, 0, 0, 1, 1, 0],
-        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
+    
+    red_skin = (200, 60, 60)
+    dark_eyes = (40, 40, 40)
+    white_body = (245, 245, 240)
+    dark_red_accent = (139, 30, 30)
+    dark_boots = (80, 40, 40)
+    
+    colors = {
+        1: red_skin,
+        2: dark_eyes,
+        3: white_body,
+        5: dark_red_accent,
+        6: dark_boots
+    }
     
     width = len(sprite_data[0]) * PIXEL_SIZE
     height = len(sprite_data) * PIXEL_SIZE
@@ -378,42 +434,46 @@ def create_enemy_sprite():
     
     for y, row in enumerate(sprite_data):
         for x, pixel in enumerate(row):
-            if pixel == 1:
-                color = DARK_GRAY
-            elif pixel == 2:
-                color = RED
-            else:
-                continue
-            
-            pygame.draw.rect(
-                sprite, color,
-                (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
-            )
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
     
     return sprite
 
 
 def create_ice_enemy_sprite():
-    """Create ice enemy sprite - same as player but blue instead of yellow."""
+    """Create ice enemy sprite - same design as player but with blue skin."""
+    # 0 = transparent, 1 = blue skin (instead of tan), 2 = dark eyes, 3 = white body
+    # 5 = dark blue accent (instead of brown), 6 = ice boots
     sprite_data = [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 1, 2, 2, 2, 1, 2, 1],
-        [1, 0, 1, 2, 2, 2, 1, 0, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 2, 2, 1, 1, 1, 2, 2, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 1, 2, 2, 2, 2, 2, 1, 1],
-        [0, 1, 2, 1, 1, 1, 1, 1, 1],
-        [0, 1, 2, 1, 0, 0, 1, 1, 0],
-        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
     
-    ice_blue = (100, 180, 255)
-    dark_ice = (50, 100, 150)
+    ice_blue_skin = (100, 180, 255)
+    dark_eyes = (40, 40, 40)
+    white_body = (245, 245, 240)
+    dark_blue_accent = (50, 100, 150)
+    ice_boots = (70, 130, 180)
+    
+    colors = {
+        1: ice_blue_skin,
+        2: dark_eyes,
+        3: white_body,
+        5: dark_blue_accent,
+        6: ice_boots
+    }
     
     width = len(sprite_data[0]) * PIXEL_SIZE
     height = len(sprite_data) * PIXEL_SIZE
@@ -422,17 +482,11 @@ def create_ice_enemy_sprite():
     
     for y, row in enumerate(sprite_data):
         for x, pixel in enumerate(row):
-            if pixel == 1:
-                color = dark_ice
-            elif pixel == 2:
-                color = ice_blue
-            else:
-                continue
-            
-            pygame.draw.rect(
-                sprite, color,
-                (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
-            )
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
     
     return sprite
 
@@ -737,23 +791,36 @@ class IceEnemy:
 
 
 def create_boss_sprite():
-    """Create boss sprite - 3x bigger enemy with red color."""
+    """Create boss sprite - same design as player but 3x bigger with dark red skin."""
+    # 0 = transparent, 1 = dark red skin, 2 = dark eyes, 3 = dark body
+    # 5 = black accent, 6 = dark boots
     sprite_data = [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 1, 2, 2, 2, 1, 2, 1],
-        [1, 0, 1, 2, 2, 2, 1, 0, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 2, 2, 1, 1, 1, 2, 2, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 1, 2, 2, 2, 2, 2, 1, 1],
-        [0, 1, 2, 1, 1, 1, 1, 1, 1],
-        [0, 1, 2, 1, 0, 0, 1, 1, 0],
-        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
+    
+    dark_red_skin = (139, 0, 0)
+    dark_eyes = (20, 20, 20)
+    dark_body = (60, 60, 60)
+    black_accent = (30, 0, 0)
+    dark_boots = (50, 20, 20)
+    
+    colors = {
+        1: dark_red_skin,
+        2: dark_eyes,
+        3: dark_body,
+        5: black_accent,
+        6: dark_boots
+    }
     
     width = len(sprite_data[0]) * BOSS_PIXEL_SIZE
     height = len(sprite_data) * BOSS_PIXEL_SIZE
@@ -762,45 +829,52 @@ def create_boss_sprite():
     
     for y, row in enumerate(sprite_data):
         for x, pixel in enumerate(row):
-            if pixel == 1:
-                color = BLACK
-            elif pixel == 2:
-                color = DARK_RED
-            else:
-                continue
-            
-            pygame.draw.rect(
-                sprite, color,
-                (x * BOSS_PIXEL_SIZE, y * BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE)
-            )
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * BOSS_PIXEL_SIZE, y * BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE)
+                )
     
     return sprite
 
 
 # Final boss settings
 FINAL_BOSS_PIXEL_SIZE = 12
-FINAL_BOSS_HEALTH = 30
+FINAL_BOSS_HEALTH = 300
 FINAL_BOSS_SPEED = 2.0
 
 
 def create_final_boss_sprite():
-    """Create final boss sprite - 4x bigger enemy with purple color."""
+    """Create final boss sprite - same design as player but 4x bigger with purple skin."""
+    # 0 = transparent, 1 = purple skin, 2 = dark eyes, 3 = dark body
+    # 5 = dark purple accent, 6 = purple boots
     sprite_data = [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 2, 2, 2, 2, 2, 2, 2, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 1, 2, 2, 2, 1, 2, 1],
-        [1, 0, 1, 2, 2, 2, 1, 0, 1],
-        [1, 1, 1, 2, 2, 2, 1, 1, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 2, 2, 1, 1, 1, 2, 2, 1],
-        [1, 2, 2, 1, 2, 1, 2, 2, 1],
-        [1, 1, 2, 2, 2, 2, 2, 1, 1],
-        [0, 1, 2, 1, 1, 1, 1, 1, 1],
-        [0, 1, 2, 1, 0, 0, 1, 1, 0],
-        [1, 1, 1, 1, 0, 0, 1, 1, 1]
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
+    
+    purple_skin = (148, 0, 211)
+    dark_eyes = (20, 20, 20)
+    dark_body = (40, 20, 60)
+    dark_purple_accent = (75, 0, 130)
+    purple_boots = (100, 0, 150)
+    
+    colors = {
+        1: purple_skin,
+        2: dark_eyes,
+        3: dark_body,
+        5: dark_purple_accent,
+        6: purple_boots
+    }
     
     width = len(sprite_data[0]) * FINAL_BOSS_PIXEL_SIZE
     height = len(sprite_data) * FINAL_BOSS_PIXEL_SIZE
@@ -809,17 +883,11 @@ def create_final_boss_sprite():
     
     for y, row in enumerate(sprite_data):
         for x, pixel in enumerate(row):
-            if pixel == 1:
-                color = FINAL_BOSS_OUTLINE
-            elif pixel == 2:
-                color = FINAL_BOSS_COLOR
-            else:
-                continue
-            
-            pygame.draw.rect(
-                sprite, color,
-                (x * FINAL_BOSS_PIXEL_SIZE, y * FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE)
-            )
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * FINAL_BOSS_PIXEL_SIZE, y * FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE, FINAL_BOSS_PIXEL_SIZE)
+                )
     
     return sprite
 
@@ -1851,6 +1919,14 @@ class Game:
         boss_x = SCREEN_WIDTH // 2 - 40
         boss_y = SCREEN_HEIGHT // 2 + 50
         self.menu_boss = MenuEnemy(boss_x, boss_y, create_boss_sprite(), 0.8)
+        
+        player_x = 150
+        player_y = SCREEN_HEIGHT // 2
+        self.menu_player = MenuEnemy(player_x, player_y, create_player_sprite(), 1.8)
+        
+        final_boss_x = SCREEN_WIDTH - 250
+        final_boss_y = SCREEN_HEIGHT // 2 - 20
+        self.menu_final_boss = MenuEnemy(final_boss_x, final_boss_y, create_final_boss_sprite(), 0.6)
 
     def start_game(self):
         self.in_menu = False
@@ -2095,8 +2171,8 @@ class Game:
                     if self.boss.take_damage(1):
                         self.boss = None
                         self.ice_bullet_unlocked = True
+                        VICTORY_SOUND.play()
                         self.next_level()
-                        KILL_SOUND.play()
                     break
         
         if self.final_boss:
@@ -2109,7 +2185,7 @@ class Game:
                     if self.final_boss.take_damage(1):
                         self.final_boss = None
                         self.game_won = True
-                        KILL_SOUND.play()
+                        VICTORY_SOUND.play()
                         if self.current_music:
                             self.current_music.stop()
                     break
@@ -2286,6 +2362,12 @@ class Game:
         
         self.menu_boss.update()
         self.menu_boss.draw(self.screen)
+        
+        self.menu_player.update()
+        self.menu_player.draw(self.screen)
+        
+        self.menu_final_boss.update()
+        self.menu_final_boss.draw(self.screen)
         
         title_text = self.title_font.render("MORZHAKA QUEST", True, YELLOW)
         title_shadow = self.title_font.render("MORZHAKA QUEST", True, (80, 60, 0))
