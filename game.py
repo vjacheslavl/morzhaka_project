@@ -277,11 +277,13 @@ BOSS_PROJECTILE_SPEED = 5
 BOSS_SHOOT_INTERVAL = 90
 
 
-def create_player_sprite():
-    """Create pixel art character sprite based on 12x12 image."""
+def create_player_sprites():
+    """Create pixel art character sprites with walking animation frames."""
     # 0 = transparent, 1 = tan/beige skin, 2 = dark blue eyes, 3 = white body
     # 4 = red weapon, 5 = brown accent, 6 = light blue boots
-    sprite_data = [
+    
+    # Frame 1 - left foot forward
+    sprite_data_1 = [
         [0, 0, 5, 1, 1, 1, 5, 0, 0],
         [0, 1, 1, 5, 1, 5, 1, 1, 0],
         [5, 2, 2, 1, 1, 1, 2, 2, 5],
@@ -295,41 +297,59 @@ def create_player_sprite():
         [3, 5, 3, 0, 0, 0, 3, 5, 3],
     ]
     
+    # Frame 2 - right foot forward (swap feet positions)
+    sprite_data_2 = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 0, 6, 0, 6, 0, 3, 0],
+        [3, 5, 0, 3, 0, 3, 0, 5, 3],
+    ]
+    
     tan_skin = (212, 184, 150)
     dark_blue_eyes = (26, 74, 110)
     white_body = (245, 245, 240)
     red_weapon = (200, 60, 60)
     brown_accent = (139, 105, 20)
     light_blue = (135, 180, 220)
+    
+    colors = {
+        1: tan_skin,
+        2: dark_blue_eyes,
+        3: white_body,
+        4: red_weapon,
+        5: brown_accent,
+        6: light_blue
+    }
+    
+    sprites = []
+    for sprite_data in [sprite_data_1, sprite_data_2]:
+        width = len(sprite_data[0]) * PIXEL_SIZE
+        height = len(sprite_data) * PIXEL_SIZE
+        sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+        
+        for y, row in enumerate(sprite_data):
+            for x, pixel in enumerate(row):
+                if pixel in colors:
+                    pygame.draw.rect(
+                        sprite, colors[pixel],
+                        (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                    )
+        
+        sprites.append(sprite)
+    
+    return sprites
 
-    width = len(sprite_data[0]) * PIXEL_SIZE
-    height = len(sprite_data) * PIXEL_SIZE
 
-    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
-
-    for y, row in enumerate(sprite_data):
-        for x, pixel in enumerate(row):
-            if pixel == 1:
-                color = tan_skin
-            elif pixel == 2:
-                color = dark_blue_eyes
-            elif pixel == 3:
-                color = white_body
-            elif pixel == 4:
-                color = red_weapon
-            elif pixel == 5:
-                color = brown_accent
-            elif pixel == 6:
-                color = light_blue
-            else:
-                continue
-
-            pygame.draw.rect(
-                sprite, color,
-                (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
-            )
-
-    return sprite
+def create_player_sprite():
+    """Create single player sprite (for compatibility)."""
+    return create_player_sprites()[0]
 
 
 def create_enemy_sprite():
@@ -482,6 +502,8 @@ class Enemy:
         self.path = []
         self.path_update_timer = 0
         self.path_update_interval = 30
+        self.blink_timer = 0
+        self.blink_duration = 6
 
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
@@ -521,10 +543,19 @@ class Enemy:
                    int((self.y + self.height // 2) // TILE_SIZE))
         player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
                        int((player.y + player.height // 2) // TILE_SIZE))
-        
+
         self.path = find_path(my_tile, player_tile, dungeon.tiles)
 
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
     def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
         screen.blit(self.sprite, (self.x, self.y))
 
     def get_rect(self):
@@ -575,10 +606,20 @@ class IceEnemy:
         self.shoot_timer = 0
         self.shoot_interval = 420
         self.health = 2
-    
+        self.blink_timer = 0
+        self.blink_duration = 6
+
     def take_damage(self, amount=1):
         self.health -= amount
+        self.start_blink()
         return self.health <= 0
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
 
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
@@ -640,6 +681,8 @@ class IceEnemy:
         return None
 
     def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
         screen.blit(self.sprite, (self.x, self.y))
 
     def get_rect(self):
@@ -829,6 +872,8 @@ class Boss:
         self.shoot_interval = BOSS_SHOOT_INTERVAL
         self.teleport_timer = 0
         self.teleport_interval = 300
+        self.blink_timer = 0
+        self.blink_duration = 8
 
     def teleport(self, player, dungeon):
         import random
@@ -895,11 +940,17 @@ class Boss:
 
     def take_damage(self, amount=1):
         self.health -= amount
+        self.start_blink()
         return self.health <= 0
 
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
     def draw(self, screen):
-        screen.blit(self.sprite, (self.x, self.y))
-        
         bar_width = self.width
         bar_height = 8
         bar_x = self.x
@@ -909,6 +960,10 @@ class Boss:
         health_width = int(bar_width * (self.health / self.max_health))
         pygame.draw.rect(screen, RED, (bar_x, bar_y, health_width, bar_height))
         pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
+        
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
@@ -931,6 +986,8 @@ class FinalBoss:
         self.spawn_interval = 300
         self.teleport_timer = 0
         self.teleport_interval = 180
+        self.blink_timer = 0
+        self.blink_duration = 8
 
     def teleport(self, player, dungeon):
         import random
@@ -1002,11 +1059,17 @@ class FinalBoss:
 
     def take_damage(self, amount=1):
         self.health -= amount
+        self.start_blink()
         return self.health <= 0
 
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
     def draw(self, screen):
-        screen.blit(self.sprite, (self.x, self.y))
-        
         bar_width = self.width
         bar_height = 10
         bar_x = self.x
@@ -1016,6 +1079,10 @@ class FinalBoss:
         health_width = int(bar_width * (self.health / self.max_health))
         pygame.draw.rect(screen, FINAL_BOSS_COLOR, (bar_x, bar_y, health_width, bar_height))
         pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
+        
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
@@ -1201,22 +1268,47 @@ class Player:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.sprite = create_player_sprite()
+        self.sprites = create_player_sprites()
+        self.sprite = self.sprites[0]
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
         self.speed = PLAYER_SPEED
         self.max_health = 4
         self.health = self.max_health
         self.last_direction = (1, 0)
+        self.walk_frame = 0
+        self.walk_timer = 0
+        self.walk_speed = 8
+        self.is_moving = False
+        self.blink_timer = 0
+        self.blink_duration = 10
 
     def move(self, dx, dy, dungeon):
         new_x = self.x + dx * self.speed
         new_y = self.y + dy * self.speed
-        
+
         if not dungeon.is_wall(new_x, new_y, self.width, self.height):
             self.x = new_x
             self.y = new_y
             self.last_direction = (dx, dy)
+            self.is_moving = True
+            
+            self.walk_timer += 1
+            if self.walk_timer >= self.walk_speed:
+                self.walk_timer = 0
+                self.walk_frame = 1 - self.walk_frame
+                self.sprite = self.sprites[self.walk_frame]
+        else:
+            self.is_moving = False
+
+    def update(self):
+        if not self.is_moving:
+            self.walk_frame = 0
+            self.sprite = self.sprites[0]
+        self.is_moving = False
+        
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
 
     def shoot(self):
         proj_x = self.x + self.width // 2 - PROJECTILE_SIZE // 2
@@ -1225,12 +1317,18 @@ class Player:
 
     def take_damage(self, amount=1):
         self.health = max(0, self.health - amount)
+        self.start_blink()
         return self.health <= 0
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
 
     def heal(self, amount=1):
         self.health = min(self.max_health, self.health + amount)
 
     def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
         screen.blit(self.sprite, (self.x, self.y))
 
     def draw_health(self, screen, x, y):
@@ -1861,6 +1959,8 @@ class Game:
                 self.current_music = None
             return
         
+        self.player.update()
+        
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
         
@@ -1941,6 +2041,7 @@ class Game:
         if self.boss:
             self.boss.move_towards_player(self.player, self.dungeon)
             self.boss.teleport(self.player, self.dungeon)
+            self.boss.update_blink()
             boss_proj = self.boss.shoot_at_player(self.player)
             if boss_proj:
                 self.boss_projectiles.append(boss_proj)
@@ -1949,6 +2050,7 @@ class Game:
         if self.final_boss:
             self.final_boss.move_towards_player(self.player, self.dungeon)
             self.final_boss.teleport(self.player, self.dungeon)
+            self.final_boss.update_blink()
             if self.final_boss.should_spawn_enemy():
                 spawn_pos = self.final_boss.get_spawn_position(self.dungeon)
                 if spawn_pos:
@@ -1961,6 +2063,7 @@ class Game:
         
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
+            enemy.update_blink()
             if isinstance(enemy, IceEnemy):
                 proj = enemy.shoot_at_player(self.player)
                 if proj:
