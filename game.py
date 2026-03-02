@@ -702,16 +702,21 @@ class IceEnemy:
         if self.shoot_timer >= self.shoot_interval:
             self.shoot_timer = 0
             
-            dx = player.x - self.x
-            dy = player.y - self.y
+            my_center_x = self.x + self.width // 2
+            my_center_y = self.y + self.height // 2
+            player_center_x = player.x + player.width // 2
+            player_center_y = player.y + player.height // 2
+            
+            dx = player_center_x - my_center_x
+            dy = player_center_y - my_center_y
             distance = (dx ** 2 + dy ** 2) ** 0.5
             
             if distance > 0:
                 dx = dx / distance
                 dy = dy / distance
                 
-                proj_x = self.x + self.width // 2 - 4
-                proj_y = self.y + self.height // 2 - 4
+                proj_x = my_center_x - 4
+                proj_y = my_center_y - 4
                 return EnemyProjectile(proj_x, proj_y, (dx, dy))
         return None
 
@@ -964,16 +969,21 @@ class Boss:
         if self.shoot_timer >= self.shoot_interval:
             self.shoot_timer = 0
             
-            dx = player.x - self.x
-            dy = player.y - self.y
+            my_center_x = self.x + self.width // 2
+            my_center_y = self.y + self.height // 2
+            player_center_x = player.x + player.width // 2
+            player_center_y = player.y + player.height // 2
+            
+            dx = player_center_x - my_center_x
+            dy = player_center_y - my_center_y
             distance = (dx ** 2 + dy ** 2) ** 0.5
             
             if distance > 0:
                 dx = dx / distance
                 dy = dy / distance
                 
-                proj_x = self.x + self.width // 2 - BOSS_PROJECTILE_SIZE // 2
-                proj_y = self.y + self.height // 2 - BOSS_PROJECTILE_SIZE // 2
+                proj_x = my_center_x - BOSS_PROJECTILE_SIZE // 2
+                proj_y = my_center_y - BOSS_PROJECTILE_SIZE // 2
                 return BossProjectile(proj_x, proj_y, (dx, dy))
         return None
 
