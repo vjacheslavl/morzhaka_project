@@ -437,8 +437,11 @@ def create_ice_enemy_sprite():
     return sprite
 
 
-def find_path(start_tile, end_tile, tiles):
-    """A* pathfinding algorithm to find path between two tiles."""
+def find_path(start_tile, end_tile, tiles, variation_seed=0):
+    """A* pathfinding algorithm to find path between two tiles.
+    
+    variation_seed: unique value per enemy to create path diversity
+    """
     if start_tile == end_tile:
         return [end_tile]
     
@@ -447,6 +450,12 @@ def find_path(start_tile, end_tile, tiles):
     
     def heuristic(a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    
+    def tile_cost(pos):
+        if variation_seed == 0:
+            return 0
+        x, y = pos
+        return ((x * 7 + y * 13 + variation_seed) % 5) * 0.3
     
     def get_neighbors(pos):
         x, y = pos
@@ -477,7 +486,7 @@ def find_path(start_tile, end_tile, tiles):
             return path
         
         for neighbor in get_neighbors(current):
-            tentative_g = g_score[current] + 1
+            tentative_g = g_score[current] + 1 + tile_cost(neighbor)
             
             if neighbor not in g_score or tentative_g < g_score[neighbor]:
                 came_from[neighbor] = current
@@ -492,6 +501,8 @@ def find_path(start_tile, end_tile, tiles):
 
 
 class Enemy:
+    _next_id = 0
+    
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -504,6 +515,12 @@ class Enemy:
         self.path_update_interval = 30
         self.blink_timer = 0
         self.blink_duration = 6
+        self.enemy_id = Enemy._next_id
+        Enemy._next_id += 1
+
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
 
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
@@ -523,8 +540,9 @@ class Enemy:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -534,9 +552,11 @@ class Enemy:
             new_y = self.y + dy * self.speed
             
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
-                self.x = new_x
+                if not self.would_collide_with_player(new_x, self.y, player):
+                    self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
-                self.y = new_y
+                if not self.would_collide_with_player(self.x, new_y, player):
+                    self.y = new_y
 
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
@@ -544,7 +564,7 @@ class Enemy:
         player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
                        int((player.y + player.height // 2) // TILE_SIZE))
 
-        self.path = find_path(my_tile, player_tile, dungeon.tiles)
+        self.path = find_path(my_tile, player_tile, dungeon.tiles, self.enemy_id)
 
     def start_blink(self):
         self.blink_timer = self.blink_duration
@@ -563,6 +583,10 @@ class Enemy:
 
     def collides_with_player(self, player):
         return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        enemy_rect = self.get_rect().inflate(4, 4)
+        return enemy_rect.colliderect(player.get_rect())
 
 
 class EnemyProjectile:
@@ -593,6 +617,8 @@ class EnemyProjectile:
 
 
 class IceEnemy:
+    _next_id = 1000
+    
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -608,6 +634,8 @@ class IceEnemy:
         self.health = 2
         self.blink_timer = 0
         self.blink_duration = 6
+        self.enemy_id = IceEnemy._next_id
+        IceEnemy._next_id += 1
 
     def take_damage(self, amount=1):
         self.health -= amount
@@ -620,6 +648,10 @@ class IceEnemy:
     def update_blink(self):
         if self.blink_timer > 0:
             self.blink_timer -= 1
+
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
 
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
@@ -639,8 +671,9 @@ class IceEnemy:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -650,9 +683,11 @@ class IceEnemy:
             new_y = self.y + dy * self.speed
             
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
-                self.x = new_x
+                if not self.would_collide_with_player(new_x, self.y, player):
+                    self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
-                self.y = new_y
+                if not self.would_collide_with_player(self.x, new_y, player):
+                    self.y = new_y
 
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
@@ -660,7 +695,7 @@ class IceEnemy:
         player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
                        int((player.y + player.height // 2) // TILE_SIZE))
         
-        self.path = find_path(my_tile, player_tile, dungeon.tiles)
+        self.path = find_path(my_tile, player_tile, dungeon.tiles, self.enemy_id)
 
     def shoot_at_player(self, player):
         self.shoot_timer += 1
@@ -690,6 +725,10 @@ class IceEnemy:
 
     def collides_with_player(self, player):
         return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        enemy_rect = self.get_rect().inflate(4, 4)
+        return enemy_rect.colliderect(player.get_rect())
 
 
 def create_boss_sprite():
@@ -971,6 +1010,10 @@ class Boss:
     def collides_with_player(self, player):
         return self.get_rect().colliderect(player.get_rect())
 
+    def is_touching_player(self, player):
+        boss_rect = self.get_rect().inflate(4, 4)
+        return boss_rect.colliderect(player.get_rect())
+
 
 class FinalBoss:
     def __init__(self, x, y):
@@ -1089,6 +1132,10 @@ class FinalBoss:
 
     def collides_with_player(self, player):
         return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        boss_rect = self.get_rect().inflate(4, 4)
+        return boss_rect.colliderect(player.get_rect())
 
 
 class Projectile:
@@ -1283,13 +1330,34 @@ class Player:
         self.blink_timer = 0
         self.blink_duration = 10
 
-    def move(self, dx, dy, dungeon):
+    def would_collide_with_enemies(self, new_x, new_y, enemies, boss=None, final_boss=None):
+        player_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        for enemy in enemies:
+            if player_rect.colliderect(enemy.get_rect()):
+                return True
+        if boss and player_rect.colliderect(boss.get_rect()):
+            return True
+        if final_boss and player_rect.colliderect(final_boss.get_rect()):
+            return True
+        return False
+
+    def move(self, dx, dy, dungeon, enemies=None, boss=None, final_boss=None):
+        if enemies is None:
+            enemies = []
+        
+        old_x, old_y = self.x, self.y
         new_x = self.x + dx * self.speed
         new_y = self.y + dy * self.speed
 
-        if not dungeon.is_wall(new_x, new_y, self.width, self.height):
+        can_move_x = not dungeon.is_wall(new_x, self.y, self.width, self.height)
+        can_move_y = not dungeon.is_wall(self.x, new_y, self.width, self.height)
+        
+        if can_move_x and not self.would_collide_with_enemies(new_x, self.y, enemies, boss, final_boss):
             self.x = new_x
+        if can_move_y and not self.would_collide_with_enemies(self.x, new_y, enemies, boss, final_boss):
             self.y = new_y
+        
+        if self.x != old_x or self.y != old_y:
             self.last_direction = (dx, dy)
             self.is_moving = True
             
@@ -1550,9 +1618,9 @@ def create_levels():
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
             [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-            [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
             [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
@@ -1940,7 +2008,7 @@ class Game:
             dx = 1
         
         if dx != 0 or dy != 0:
-            self.player.move(dx, dy, self.dungeon)
+            self.player.move(dx, dy, self.dungeon, self.enemies, self.boss, self.final_boss)
         
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
             if self.ice_bullet_unlocked:
@@ -2079,20 +2147,20 @@ class Game:
             self.damage_cooldown -= 1
         else:
             for enemy in self.enemies:
-                if enemy.collides_with_player(self.player):
+                if enemy.is_touching_player(self.player):
                     if self.player.take_damage():
                         self.game_over = True
                     DAMAGE_SOUND.play()
                     self.damage_cooldown = 60
                     break
             
-            if self.boss and self.boss.collides_with_player(self.player):
+            if self.boss and self.boss.is_touching_player(self.player):
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
             
-            if self.final_boss and self.final_boss.collides_with_player(self.player):
+            if self.final_boss and self.final_boss.is_touching_player(self.player):
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
