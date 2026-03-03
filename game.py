@@ -273,6 +273,43 @@ def create_final_boss_music():
 
 ICE_CAVE_MUSIC = create_ice_cave_music()
 FINAL_BOSS_MUSIC = create_final_boss_music()
+
+def create_castle_music():
+    import array
+    import math
+    sample_rate = 22050
+    duration = 4.0
+    n_samples = int(sample_rate * duration)
+    buf = array.array('h', [0] * n_samples)
+    
+    notes = [110.00, 116.54, 130.81, 116.54, 110.00, 103.83, 98.00, 103.83]
+    note_duration = duration / len(notes)
+    
+    for i in range(n_samples):
+        t = i / sample_rate
+        note_idx = int(t / note_duration) % len(notes)
+        root = notes[note_idx]
+        
+        organ = math.sin(2 * math.pi * root * t) * 0.4
+        organ += math.sin(2 * math.pi * root * 2 * t) * 0.2
+        organ += math.sin(2 * math.pi * root * 0.5 * t) * 0.3
+        
+        choir = math.sin(2 * math.pi * root * 1.5 * t + math.sin(t * 2)) * 0.15
+        
+        beat_pos = (t * 2) % 1
+        drum = 0
+        if beat_pos < 0.1:
+            drum = math.sin(2 * math.pi * 40 * beat_pos) * (1 - beat_pos * 10) * 0.5
+        
+        envelope = min(1.0, (t % note_duration) * 8) * max(0.4, 1 - (t % note_duration) / note_duration * 0.5)
+        val = int((organ + choir + drum) * 4500 * envelope)
+        buf[i] = max(-32767, min(32767, val))
+    
+    sound = pygame.mixer.Sound(buffer=buf)
+    sound.set_volume(0.3)
+    return sound
+
+CASTLE_MUSIC = create_castle_music()
 current_music = None
 
 # Screen settings
@@ -790,6 +827,311 @@ class IceEnemy:
         return enemy_rect.colliderect(player.get_rect())
 
 
+def create_castle_enemy_fast_sprite():
+    """Create light gray fast castle enemy sprite."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+    
+    light_gray_skin = (180, 180, 185)
+    dark_eyes = (30, 30, 30)
+    gray_body = (150, 150, 155)
+    dark_gray_accent = (100, 100, 105)
+    gray_boots = (120, 120, 125)
+    
+    colors = {
+        1: light_gray_skin,
+        2: dark_eyes,
+        3: gray_body,
+        5: dark_gray_accent,
+        6: gray_boots
+    }
+    
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
+    
+    return sprite
+
+
+def create_castle_enemy_shooter_sprite():
+    """Create dark gray shooter castle enemy sprite."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+    
+    dark_gray_skin = (70, 70, 75)
+    dark_eyes = (20, 20, 20)
+    darker_body = (50, 50, 55)
+    black_accent = (30, 30, 35)
+    dark_boots = (40, 40, 45)
+    
+    colors = {
+        1: dark_gray_skin,
+        2: dark_eyes,
+        3: darker_body,
+        5: black_accent,
+        6: dark_boots
+    }
+    
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
+    
+    return sprite
+
+
+class CastleEnemyFast:
+    """Light gray fast castle enemy with 2 HP."""
+    _next_id = 2000
+    
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_castle_enemy_fast_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = ENEMY_SPEED * 1.4
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 25
+        self.health = 2
+        self.blink_timer = 0
+        self.blink_duration = 6
+        self.enemy_id = CastleEnemyFast._next_id
+        CastleEnemyFast._next_id += 1
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        self.start_blink()
+        return self.health <= 0
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
+
+    def move_towards_player(self, player, dungeon):
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+        
+        if not self.path:
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE + TILE_SIZE // 2 - self.width // 2
+        target_y = target_tile[1] * TILE_SIZE + TILE_SIZE // 2 - self.height // 2
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if distance < self.speed:
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
+            self.path.pop(0)
+        else:
+            dx = dx / distance
+            dy = dy / distance
+            
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+            
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                if not self.would_collide_with_player(new_x, self.y, player):
+                    self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                if not self.would_collide_with_player(self.x, new_y, player):
+                    self.y = new_y
+
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path(my_tile, player_tile, dungeon.tiles, self.enemy_id)
+
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        enemy_rect = self.get_rect().inflate(4, 4)
+        return enemy_rect.colliderect(player.get_rect())
+
+
+class CastleEnemyShooter:
+    """Dark gray shooter castle enemy with 2 HP, shoots every 8 seconds."""
+    _next_id = 3000
+    
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_castle_enemy_shooter_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = ENEMY_SPEED
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 30
+        self.shoot_timer = 0
+        self.shoot_interval = 480
+        self.health = 2
+        self.blink_timer = 0
+        self.blink_duration = 6
+        self.enemy_id = CastleEnemyShooter._next_id
+        CastleEnemyShooter._next_id += 1
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        self.start_blink()
+        return self.health <= 0
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
+
+    def move_towards_player(self, player, dungeon):
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+        
+        if not self.path:
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE + TILE_SIZE // 2 - self.width // 2
+        target_y = target_tile[1] * TILE_SIZE + TILE_SIZE // 2 - self.height // 2
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if distance < self.speed:
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
+            self.path.pop(0)
+        else:
+            dx = dx / distance
+            dy = dy / distance
+            
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+            
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                if not self.would_collide_with_player(new_x, self.y, player):
+                    self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                if not self.would_collide_with_player(self.x, new_y, player):
+                    self.y = new_y
+
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path(my_tile, player_tile, dungeon.tiles, self.enemy_id)
+
+    def shoot_at_player(self, player):
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_interval:
+            self.shoot_timer = 0
+            
+            my_center_x = self.x + self.width // 2
+            my_center_y = self.y + self.height // 2
+            player_center_x = player.x + player.width // 2
+            player_center_y = player.y + player.height // 2
+            
+            dx = player_center_x - my_center_x
+            dy = player_center_y - my_center_y
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+                
+                proj_x = my_center_x - 4
+                proj_y = my_center_y - 4
+                return EnemyProjectile(proj_x, proj_y, (dx, dy))
+        return None
+
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        enemy_rect = self.get_rect().inflate(4, 4)
+        return enemy_rect.colliderect(player.get_rect())
+
+
 def create_boss_sprite():
     """Create boss sprite - same design as player but 3x bigger with dark red skin."""
     # 0 = transparent, 1 = dark red skin, 2 = dark eyes, 3 = dark body
@@ -1081,6 +1423,177 @@ class Boss:
         if self.blink_timer > 0 and self.blink_timer % 2 == 1:
             return
         screen.blit(self.sprite, (self.x, self.y))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        boss_rect = self.get_rect().inflate(4, 4)
+        return boss_rect.colliderect(player.get_rect())
+
+
+def create_ice_boss_sprite():
+    """Create ice boss sprite - same design but ice blue theme."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+    
+    ice_blue_skin = (100, 180, 230)
+    dark_eyes = (20, 30, 50)
+    ice_body = (150, 200, 240)
+    dark_blue_accent = (50, 100, 150)
+    ice_boots = (80, 140, 190)
+    
+    colors = {
+        1: ice_blue_skin,
+        2: dark_eyes,
+        3: ice_body,
+        5: dark_blue_accent,
+        6: ice_boots
+    }
+    
+    width = len(sprite_data[0]) * BOSS_PIXEL_SIZE
+    height = len(sprite_data) * BOSS_PIXEL_SIZE
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * BOSS_PIXEL_SIZE, y * BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE, BOSS_PIXEL_SIZE)
+                )
+    
+    return sprite
+
+
+class IceBoss:
+    """Ice cave boss with 50 HP."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.sprite = create_ice_boss_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = BOSS_SPEED
+        self.max_health = 50
+        self.health = self.max_health
+        self.shoot_timer = 0
+        self.shoot_interval = BOSS_SHOOT_INTERVAL
+        self.teleport_timer = 0
+        self.teleport_interval = 250
+        self.blink_timer = 0
+        self.blink_duration = 8
+
+    def teleport(self, player, dungeon):
+        import random
+        self.teleport_timer += 1
+        if self.teleport_timer < self.teleport_interval:
+            return
+
+        self.teleport_timer = 0
+
+        valid_positions = []
+        for tile_y in range(len(dungeon.tiles)):
+            for tile_x in range(len(dungeon.tiles[0])):
+                if dungeon.tiles[tile_y][tile_x] == 0:
+                    pos_x = tile_x * TILE_SIZE
+                    pos_y = tile_y * TILE_SIZE
+                    
+                    if pos_x + self.width <= SCREEN_WIDTH and pos_y + self.height <= SCREEN_HEIGHT:
+                        dist_to_player = ((pos_x - player.x)**2 + (pos_y - player.y)**2)**0.5
+                        if dist_to_player > 150:
+                            valid_positions.append((pos_x, pos_y))
+
+        if valid_positions:
+            new_pos = random.choice(valid_positions)
+            self.x, self.y = new_pos
+
+    def move_towards_player(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance < 100:
+            return
+
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def shoot_at_player(self, player):
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_interval:
+            self.shoot_timer = 0
+
+            my_center_x = self.x + self.width // 2
+            my_center_y = self.y + self.height // 2
+            player_center_x = player.x + player.width // 2
+            player_center_y = player.y + player.height // 2
+
+            dx = player_center_x - my_center_x
+            dy = player_center_y - my_center_y
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+
+                proj_x = my_center_x - BOSS_PROJECTILE_SIZE // 2
+                proj_y = my_center_y - BOSS_PROJECTILE_SIZE // 2
+                return BossProjectile(proj_x, proj_y, (dx, dy))
+        return None
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        self.start_blink()
+        return self.health <= 0
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
+
+        bar_width = self.width
+        bar_height = 8
+        bar_x = self.x
+        bar_y = self.y - 15
+
+        pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_width, bar_height))
+
+        health_ratio = self.health / self.max_health
+        health_width = int(bar_width * health_ratio)
+        pygame.draw.rect(screen, ICE_FLOOR_COLOR, (bar_x, bar_y, health_width, bar_height))
+
+        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 1)
 
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
@@ -1513,16 +2026,195 @@ class Dungeon:
         self.spawn_point = level_data['spawn']
         self.exit_point = level_data['exit']
         self.location = level_data.get('location', 1)
+        self.animation_timer = 0
+        self.P = PIXEL_SIZE
         
-        # Set colors based on location
-        if self.location == 2:
-            self.wall_color = ICE_WALL_COLOR
-            self.wall_border = ICE_WALL_BORDER
-            self.floor_color = ICE_FLOOR_COLOR
+        if self.location == 3:
+            self.colors = {
+                'wall_main': (45, 45, 50),
+                'wall_light': (70, 70, 80),
+                'wall_dark': (25, 25, 30),
+                'wall_outline': (15, 15, 18),
+                'floor_main': (65, 65, 70),
+                'floor_light': (85, 85, 95),
+                'floor_dark': (40, 40, 45),
+                'floor_accent': (55, 55, 60),
+            }
+        elif self.location == 2:
+            self.colors = {
+                'wall_main': (80, 120, 160),
+                'wall_light': (120, 160, 200),
+                'wall_dark': (50, 80, 110),
+                'wall_outline': (30, 50, 70),
+                'floor_main': (170, 190, 210),
+                'floor_light': (200, 215, 230),
+                'floor_dark': (130, 155, 180),
+                'floor_accent': (100, 140, 180),
+            }
         else:
-            self.wall_color = WALL_COLOR
-            self.wall_border = WALL_BORDER
-            self.floor_color = LIGHT_GRAY
+            self.colors = {
+                'wall_main': (85, 65, 50),
+                'wall_light': (120, 95, 75),
+                'wall_dark': (55, 42, 32),
+                'wall_outline': (35, 25, 18),
+                'floor_main': (140, 125, 105),
+                'floor_light': (170, 155, 130),
+                'floor_dark': (100, 88, 72),
+                'floor_accent': (125, 110, 90),
+            }
+        
+        self.generate_decorations()
+        self.create_cached_surfaces()
+    
+    def generate_decorations(self):
+        import random
+        random.seed(self.level_num * 1337)
+        
+        self.floor_pattern = {}
+        self.wall_pattern = {}
+        self.torches = []
+        
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.tiles[y][x] == 0:
+                    self.floor_pattern[(x, y)] = random.randint(0, 5)
+                else:
+                    self.wall_pattern[(x, y)] = random.randint(0, 3)
+        
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.tiles[y][x] == 1:
+                    if y + 1 < self.height and self.tiles[y + 1][x] == 0:
+                        if random.random() < 0.1:
+                            self.torches.append((x, y))
+
+    def create_cached_surfaces(self):
+        self.static_surface = pygame.Surface((self.width * TILE_SIZE, self.height * TILE_SIZE))
+        
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.tiles[y][x] == 1:
+                    self.render_wall_tile(self.static_surface, x, y)
+                else:
+                    self.render_floor_tile(self.static_surface, x, y)
+        
+        self.render_shadows(self.static_surface)
+        
+        self.torch_frames = []
+        for frame in range(4):
+            self.torch_frames.append(self.create_torch_frame(frame))
+        
+        self.portal_frames = []
+        for frame in range(4):
+            self.portal_frames.append(self.create_portal_frame(frame))
+
+    def px_surf(self, surface, x, y, color):
+        pygame.draw.rect(surface, color, (x, y, self.P, self.P))
+
+    def render_floor_tile(self, surface, x, y):
+        tx, ty = x * TILE_SIZE, y * TILE_SIZE
+        P = self.P
+        pattern = self.floor_pattern.get((x, y), 0)
+        c = self.colors
+        
+        pygame.draw.rect(surface, c['floor_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
+        
+        if pattern == 1:
+            self.px_surf(surface, tx + P * 3, ty + P * 5, c['floor_dark'])
+            self.px_surf(surface, tx + P * 10, ty + P * 8, c['floor_dark'])
+        elif pattern == 2:
+            self.px_surf(surface, tx + P * 7, ty + P * 4, c['floor_light'])
+            self.px_surf(surface, tx + P * 12, ty + P * 11, c['floor_light'])
+        elif pattern == 3:
+            self.px_surf(surface, tx + P * 5, ty + P * 9, c['floor_dark'])
+        elif pattern == 4:
+            self.px_surf(surface, tx + P * 2, ty + P * 12, c['floor_light'])
+            self.px_surf(surface, tx + P * 9, ty + P * 3, c['floor_dark'])
+
+    def render_wall_tile(self, surface, x, y):
+        tx, ty = x * TILE_SIZE, y * TILE_SIZE
+        P = self.P
+        pattern = self.wall_pattern.get((x, y), 0)
+        c = self.colors
+        
+        pygame.draw.rect(surface, c['wall_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
+        
+        for row in range(4):
+            brick_y = ty + row * 4 * P
+            offset = (8 * P) if row % 2 == 1 else 0
+            
+            for i in range(16):
+                self.px_surf(surface, tx + i * P, brick_y, c['wall_dark'])
+            
+            for bx in range(-1, 3):
+                line_x = tx + bx * 8 * P + offset
+                if line_x >= tx and line_x < tx + TILE_SIZE:
+                    for by in range(4):
+                        if brick_y + by * P < ty + TILE_SIZE:
+                            self.px_surf(surface, line_x, brick_y + by * P, c['wall_dark'])
+        
+        self.px_surf(surface, tx + P, ty + P, c['wall_light'])
+        self.px_surf(surface, tx + P * 2, ty + P, c['wall_light'])
+        self.px_surf(surface, tx + P, ty + P * 2, c['wall_light'])
+        
+        if pattern == 1:
+            self.px_surf(surface, tx + P * 10, ty + P * 6, c['wall_dark'])
+        elif pattern == 2:
+            self.px_surf(surface, tx + P * 5, ty + P * 10, c['wall_light'])
+
+    def render_shadows(self, surface):
+        P = self.P
+        c = self.colors
+        
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.tiles[y][x] == 0:
+                    tx, ty = x * TILE_SIZE, y * TILE_SIZE
+                    
+                    if y > 0 and self.tiles[y - 1][x] == 1:
+                        pygame.draw.rect(surface, c['floor_dark'], (tx, ty, TILE_SIZE, P * 2))
+
+    def create_torch_frame(self, frame):
+        P = self.P
+        surf = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        
+        holder = (90, 65, 40)
+        
+        pygame.draw.rect(surf, holder, (7 * P, 12 * P, 2 * P, 3 * P))
+        
+        flame_main = [(255, 200, 60), (255, 180, 50), (255, 220, 80), (255, 160, 40)]
+        flame_top = [(255, 120, 30), (255, 100, 25), (255, 140, 40), (255, 90, 20)]
+        
+        pygame.draw.rect(surf, flame_main[frame], (7 * P, 10 * P, 2 * P, 2 * P))
+        pygame.draw.rect(surf, flame_top[frame], (7 * P, 9 * P, 2 * P, P))
+        
+        if frame == 0 or frame == 2:
+            pygame.draw.rect(surf, flame_top[frame], (7 * P, 8 * P, P, P))
+        else:
+            pygame.draw.rect(surf, flame_top[frame], (8 * P, 8 * P, P, P))
+        
+        return surf
+
+    def create_portal_frame(self, frame):
+        P = self.P
+        surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+        surf.fill(self.colors['floor_main'])
+        
+        colors = [
+            (200, 170, 60),
+            (230, 200, 80),
+            (255, 230, 120),
+            (255, 245, 180)
+        ]
+        
+        c = [colors[(i + frame) % 4] for i in range(4)]
+        
+        pygame.draw.rect(surf, c[0], (3 * P, 3 * P, 10 * P, 10 * P))
+        pygame.draw.rect(surf, c[1], (5 * P, 5 * P, 6 * P, 6 * P))
+        pygame.draw.rect(surf, c[2], (6 * P, 6 * P, 4 * P, 4 * P))
+        pygame.draw.rect(surf, c[3], (7 * P, 7 * P, 2 * P, 2 * P))
+        
+        return surf
 
     def is_wall(self, x, y, width, height):
         corners = [
@@ -1556,25 +2248,20 @@ class Dungeon:
         )
         return player_rect.colliderect(exit_rect)
 
+    def update(self):
+        self.animation_timer += 1
+
     def draw(self, screen):
-        for y, row in enumerate(self.tiles):
-            for x, tile in enumerate(row):
-                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-                
-                if tile == 1:
-                    pygame.draw.rect(screen, self.wall_color, rect)
-                    pygame.draw.rect(screen, self.wall_border, rect, 2)
-                else:
-                    pygame.draw.rect(screen, self.floor_color, rect)
+        screen.blit(self.static_surface, (0, 0))
+        
+        frame = (self.animation_timer // 8) % 4
+        for x, y in self.torches:
+            screen.blit(self.torch_frames[frame], (x * TILE_SIZE, y * TILE_SIZE))
         
         if self.exit_point:
-            exit_rect = pygame.Rect(
-                self.exit_point[0] * TILE_SIZE + 4,
-                self.exit_point[1] * TILE_SIZE + 4,
-                TILE_SIZE - 8,
-                TILE_SIZE - 8
-            )
-            pygame.draw.rect(screen, YELLOW, exit_rect)
+            portal_frame = (self.animation_timer // 10) % 4
+            ex, ey = self.exit_point
+            screen.blit(self.portal_frames[portal_frame], (ex * TILE_SIZE, ey * TILE_SIZE))
 
 
 def create_levels():
@@ -1784,7 +2471,111 @@ def create_levels():
     }
     levels.append(level8)
     
-    # Level 9 - Final Boss Arena
+    # Level 9 - Ice Boss (checkpoint before castle)
+    ice_boss = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (2, 7),
+        'exit': None,
+        'enemy_count': 0,
+        'is_boss_level': True,
+        'location': 2,
+        'checkpoint': True
+    }
+    levels.append(ice_boss)
+    
+    # === LOCATION 3: Shadow Byako Castle ===
+    
+    # Level 10 - Castle Entrance
+    level10 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 12),
+        'enemy_count': 4,
+        'location': 3
+    }
+    levels.append(level10)
+    
+    # Level 11 - Shadow Corridors
+    level11 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 12),
+        'enemy_count': 5,
+        'location': 3
+    }
+    levels.append(level11)
+    
+    # Level 12 - Throne Approach
+    level12 = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 12),
+        'enemy_count': 6,
+        'location': 3
+    }
+    levels.append(level12)
+    
+    # Level 13 - Final Boss Arena (Dark Lord's Throne)
     final_boss = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -1807,7 +2598,7 @@ def create_levels():
         'enemy_count': 0,
         'is_boss_level': True,
         'is_final_boss': True,
-        'location': 2
+        'location': 3
     }
     levels.append(final_boss)
     
@@ -1860,15 +2651,23 @@ class Game:
         self.small_font = pygame.font.Font(None, 24)
         self.title_font = pygame.font.Font(None, 72)
         self.menu_font = pygame.font.Font(None, 48)
+        self.cutscene_font = pygame.font.Font(None, 32)
         
         self.in_menu = True
+        self.in_cutscene = False
+        self.cutscene_page = 0
+        self.cutscene_timer = 0
+        self.cutscene_fade = 0
+        self.cutscene_text_progress = 0
         self.menu_selection = 0
         self.init_menu_background()
+        self.init_cutscene()
         
         self.levels = create_levels()
         self.current_level = 0
         self.checkpoint_level = 0
         self.ice_bullet_unlocked = False
+        self.selected_bullet = 1  # 1 = normal purple, 2 = ice (when unlocked)
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
         
         spawn = self.dungeon.spawn_point
@@ -1928,6 +2727,148 @@ class Game:
         final_boss_y = SCREEN_HEIGHT // 2 - 20
         self.menu_final_boss = MenuEnemy(final_boss_x, final_boss_y, create_final_boss_sprite(), 0.6)
 
+    def init_cutscene(self):
+        self.cutscene_pages = [
+            {
+                "title": "A PEACEFUL DAY",
+                "text": [
+                    "You are a young warrior",
+                    "training under the legendary Master Morzhaka.",
+                    "",
+                    "For years, he taught you the ancient arts",
+                    "of combat and the way of the warrior."
+                ],
+                "bg_color": (15, 20, 15)
+            },
+            {
+                "title": "THE DARK LORD STRIKES",
+                "text": [
+                    "But one fateful night, the evil Dark Lord",
+                    "attacked your village with his army!",
+                    "",
+                    "He kidnapped Master Morzhaka and dragged him",
+                    "deep into his cursed dungeon fortress."
+                ],
+                "bg_color": (25, 10, 10)
+            },
+            {
+                "title": "YOUR MISSION",
+                "text": [
+                    "You must fight through the dungeon,",
+                    "cross the frozen Ice Caves,",
+                    "and reach Shadow Byako Castle!",
+                    "",
+                    "The Dark Lord holds Master Morzhaka there...",
+                    "Only you can stop him and save your Master!"
+                ],
+                "bg_color": (10, 10, 25)
+            },
+            {
+                "title": "CONTROLS",
+                "text": [
+                    "WASD or Arrow Keys - Move",
+                    "SPACE - Shoot",
+                    "1 / 2 - Switch bullets",
+                    "",
+                    "Find yellow exits to progress.",
+                    "Save Master Morzhaka!"
+                ],
+                "bg_color": (20, 15, 20)
+            }
+        ]
+        self.cutscene_player_x = -50
+        self.cutscene_player_sprite = create_player_sprites()
+
+    def start_cutscene(self):
+        self.in_menu = False
+        self.in_cutscene = True
+        self.cutscene_page = 0
+        self.cutscene_timer = 0
+        self.cutscene_fade = 0
+        self.cutscene_text_progress = 0
+        self.cutscene_player_x = -50
+
+    def advance_cutscene(self):
+        self.cutscene_page += 1
+        self.cutscene_timer = 0
+        self.cutscene_text_progress = 0
+        self.cutscene_fade = 0
+        self.cutscene_player_x = -50
+        
+        if self.cutscene_page >= len(self.cutscene_pages):
+            self.in_cutscene = False
+            self.start_game()
+
+    def update_cutscene(self):
+        self.cutscene_timer += 1
+        
+        if self.cutscene_fade < 255:
+            self.cutscene_fade = min(255, self.cutscene_fade + 5)
+        
+        page_data = self.cutscene_pages[self.cutscene_page]
+        total_chars = sum(len(line) for line in page_data["text"])
+        if self.cutscene_text_progress < total_chars:
+            self.cutscene_text_progress += 0.5
+        
+        self.cutscene_player_x += 1.5
+        if self.cutscene_player_x > SCREEN_WIDTH + 50:
+            self.cutscene_player_x = -50
+
+    def draw_cutscene(self):
+        page_data = self.cutscene_pages[self.cutscene_page]
+        self.screen.fill(page_data["bg_color"])
+        
+        alpha = self.cutscene_fade
+        
+        title_color = (min(255, 200 + int(alpha * 0.2)), min(255, 180 + int(alpha * 0.3)), 50)
+        title_text = self.title_font.render(page_data["title"], True, title_color)
+        title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
+        
+        title_surface = pygame.Surface(title_text.get_size(), pygame.SRCALPHA)
+        title_surface.blit(title_text, (0, 0))
+        title_surface.set_alpha(alpha)
+        self.screen.blit(title_surface, title_rect)
+        
+        y_offset = 200
+        chars_shown = int(self.cutscene_text_progress)
+        current_char = 0
+        
+        for line in page_data["text"]:
+            if current_char >= chars_shown:
+                break
+            
+            line_chars = min(len(line), chars_shown - current_char)
+            display_line = line[:line_chars]
+            
+            text_surface = self.cutscene_font.render(display_line, True, (200, 200, 200))
+            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, y_offset))
+            
+            text_with_alpha = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
+            text_with_alpha.blit(text_surface, (0, 0))
+            text_with_alpha.set_alpha(alpha)
+            self.screen.blit(text_with_alpha, text_rect)
+            
+            current_char += len(line)
+            y_offset += 35
+        
+        player_y = SCREEN_HEIGHT - 150
+        frame = (self.cutscene_timer // 8) % 2
+        player_sprite = self.cutscene_player_sprite[frame]
+        self.screen.blit(player_sprite, (self.cutscene_player_x, player_y))
+        
+        progress_text = f"Page {self.cutscene_page + 1}/{len(self.cutscene_pages)}"
+        progress_surface = self.small_font.render(progress_text, True, (100, 100, 100))
+        self.screen.blit(progress_surface, (10, SCREEN_HEIGHT - 30))
+        
+        hint_text = "Press SPACE or ENTER to continue..."
+        hint_surface = self.small_font.render(hint_text, True, (150, 150, 150))
+        hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
+        self.screen.blit(hint_surface, hint_rect)
+        
+        skip_text = "Press ESC to skip"
+        skip_surface = self.small_font.render(skip_text, True, (80, 80, 80))
+        self.screen.blit(skip_surface, (SCREEN_WIDTH - skip_surface.get_width() - 10, SCREEN_HEIGHT - 30))
+
     def start_game(self):
         self.in_menu = False
         self.play_music(BACKGROUND_MUSIC)
@@ -1959,7 +2900,10 @@ class Game:
         if self.is_boss_level:
             boss_x = 20 * TILE_SIZE
             boss_y = 6 * TILE_SIZE
-            self.boss = Boss(boss_x, boss_y)
+            if self.current_location == 2:
+                self.boss = IceBoss(boss_x, boss_y)
+            else:
+                self.boss = Boss(boss_x, boss_y)
             return
         
         enemy_count = level_data.get('enemy_count', 0)
@@ -1987,7 +2931,13 @@ class Game:
                 if tiles[tile_y][tile_x] == 0:
                     enemy_x = tile_x * TILE_SIZE + 4
                     enemy_y = tile_y * TILE_SIZE + 4
-                    if self.current_location == 2:
+                    if self.current_location == 3:
+                        import random
+                        if random.random() < 0.5:
+                            self.enemies.append(CastleEnemyFast(enemy_x, enemy_y))
+                        else:
+                            self.enemies.append(CastleEnemyShooter(enemy_x, enemy_y))
+                    elif self.current_location == 2:
                         self.enemies.append(IceEnemy(enemy_x, enemy_y))
                     else:
                         self.enemies.append(Enemy(enemy_x, enemy_y))
@@ -2016,7 +2966,13 @@ class Game:
                 if tiles[tile_y][tile_x] == 0:
                     enemy_x = tile_x * TILE_SIZE + 4
                     enemy_y = tile_y * TILE_SIZE + 4
-                    if self.current_location == 2:
+                    if self.current_location == 3:
+                        import random
+                        if random.random() < 0.5:
+                            self.enemies.append(CastleEnemyFast(enemy_x, enemy_y))
+                        else:
+                            self.enemies.append(CastleEnemyShooter(enemy_x, enemy_y))
+                    elif self.current_location == 2:
                         self.enemies.append(IceEnemy(enemy_x, enemy_y))
                     else:
                         self.enemies.append(Enemy(enemy_x, enemy_y))
@@ -2074,6 +3030,8 @@ class Game:
             self.play_music(FINAL_BOSS_MUSIC)
         elif level_data.get('is_boss_level', False):
             self.play_music(BOSS_MUSIC)
+        elif location == 3:
+            self.play_music(CASTLE_MUSIC)
         elif location == 2:
             self.play_music(ICE_CAVE_MUSIC)
         else:
@@ -2096,8 +3054,13 @@ class Game:
         if dx != 0 or dy != 0:
             self.player.move(dx, dy, self.dungeon, self.enemies, self.boss, self.final_boss)
         
+        if keys[pygame.K_1]:
+            self.selected_bullet = 1
+        if keys[pygame.K_2] and self.ice_bullet_unlocked:
+            self.selected_bullet = 2
+        
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
-            if self.ice_bullet_unlocked:
+            if self.selected_bullet == 2 and self.ice_bullet_unlocked:
                 proj_x = self.player.x + self.player.width // 2 - 4
                 proj_y = self.player.y + self.player.height // 2 - 4
                 self.projectiles.append(IceProjectile(proj_x, proj_y, self.player.last_direction))
@@ -2113,6 +3076,7 @@ class Game:
                 self.current_music = None
             return
         
+        self.dungeon.update()
         self.player.update()
         
         if self.shoot_cooldown > 0:
@@ -2218,7 +3182,7 @@ class Game:
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
             enemy.update_blink()
-            if isinstance(enemy, IceEnemy):
+            if isinstance(enemy, (IceEnemy, CastleEnemyShooter)):
                 proj = enemy.shoot_at_player(self.player)
                 if proj:
                     self.enemy_projectiles.append(proj)
@@ -2277,7 +3241,7 @@ class Game:
         self.screen.fill(BLACK)
         
         if self.game_won:
-            win_text = self.font.render("Congratulations! You completed Morzhaka Quest!", True, GREEN)
+            win_text = self.font.render("You defeated the Dark Lord and saved Master Morzhaka!", True, GREEN)
             restart_text = self.small_font.render("Press R to restart or ESC to quit", True, WHITE)
             self.screen.blit(win_text, (SCREEN_WIDTH // 2 - win_text.get_width() // 2, SCREEN_HEIGHT // 2 - 20))
             self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
@@ -2326,7 +3290,9 @@ class Game:
                 level_text = self.font.render("BOSS FIGHT!", True, RED)
             else:
                 location = self.levels[self.current_level].get('location', 1)
-                if location == 2:
+                if location == 3:
+                    level_text = self.font.render(f"Shadow Byako Castle - Level: {self.current_level + 1}/{len(self.levels)}", True, (150, 150, 160))
+                elif location == 2:
                     level_text = self.font.render(f"Ice Caves - Level: {self.current_level + 1}/{len(self.levels)}", True, ICE_FLOOR_COLOR)
                 else:
                     level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
@@ -2336,19 +3302,26 @@ class Game:
             self.screen.blit(health_label, (SCREEN_WIDTH - 140, 10))
             self.player.draw_health(self.screen, SCREEN_WIDTH - 110, 8)
             
+            bullet1_color = YELLOW if self.selected_bullet == 1 else GRAY
+            bullet1_text = self.small_font.render("[1] Normal", True, bullet1_color)
+            self.screen.blit(bullet1_text, (SCREEN_WIDTH - 140, 35))
+            
             if self.ice_bullet_unlocked:
-                bullet_text = self.small_font.render("ICE BULLET", True, (0, 255, 255))
-                self.screen.blit(bullet_text, (SCREEN_WIDTH - 110, 35))
+                bullet2_color = (0, 255, 255) if self.selected_bullet == 2 else GRAY
+                bullet2_text = self.small_font.render("[2] Ice", True, bullet2_color)
+                self.screen.blit(bullet2_text, (SCREEN_WIDTH - 140, 55))
             
             if self.is_final_boss_level:
-                hint_text = self.small_font.render("Defeat the Final Boss to escape!", True, FINAL_BOSS_COLOR)
+                hint_text = self.small_font.render("Defeat the Dark Lord and save your Master!", True, FINAL_BOSS_COLOR)
             elif self.is_boss_level:
-                hint_text = self.small_font.render("Defeat the boss to reach the Ice Caves!", True, RED)
+                hint_text = self.small_font.render("Defeat this guardian to reach the Dark Lord!", True, RED)
+            elif self.current_location == 3:
+                hint_text = self.small_font.render("The Dark Lord awaits in his throne room!", True, (150, 150, 160))
             else:
-                hint_text = self.small_font.render("Find the yellow exit! Avoid red enemies!", True, YELLOW)
+                hint_text = self.small_font.render("Find the exit! Your Master needs you!", True, YELLOW)
             self.screen.blit(hint_text, (10, 45))
             
-            controls_text = self.small_font.render("WASD/Arrows to move, SPACE to shoot", True, WHITE)
+            controls_text = self.small_font.render("WASD/Arrows: move | SPACE: shoot | 1/2: switch bullets", True, WHITE)
             self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
         
         pygame.display.flip()
@@ -2406,11 +3379,17 @@ class Game:
                             self.menu_selection = (self.menu_selection + 1) % 2
                         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                             if self.menu_selection == 0:
-                                self.start_game()
+                                self.start_cutscene()
                             else:
                                 self.running = False
                         elif event.key == pygame.K_ESCAPE:
                             self.running = False
+                    elif self.in_cutscene:
+                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                            self.advance_cutscene()
+                        elif event.key == pygame.K_ESCAPE:
+                            self.in_cutscene = False
+                            self.start_game()
                     else:
                         if event.key == pygame.K_ESCAPE:
                             self.running = False
@@ -2419,6 +3398,7 @@ class Game:
                                 self.current_level = 0
                                 self.checkpoint_level = 0
                                 self.ice_bullet_unlocked = False
+                                self.selected_bullet = 1
                             else:
                                 self.current_level = self.checkpoint_level
                             self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
@@ -2446,6 +3426,10 @@ class Game:
             
             if self.in_menu:
                 self.draw_menu()
+                pygame.display.flip()
+            elif self.in_cutscene:
+                self.update_cutscene()
+                self.draw_cutscene()
                 pygame.display.flip()
             else:
                 self.handle_input()
