@@ -144,9 +144,19 @@ class HealthKit:
 
 
 class Laser:
+    MAX_LENGTH_TILES = 4
+    
     def __init__(self, start_tile, end_tile, on_duration=90, off_duration=90, start_on=True):
         self.start_tile = start_tile
-        self.end_tile = end_tile
+        
+        dx = end_tile[0] - start_tile[0]
+        dy = end_tile[1] - start_tile[1]
+        if abs(dx) > self.MAX_LENGTH_TILES:
+            dx = self.MAX_LENGTH_TILES if dx > 0 else -self.MAX_LENGTH_TILES
+        if abs(dy) > self.MAX_LENGTH_TILES:
+            dy = self.MAX_LENGTH_TILES if dy > 0 else -self.MAX_LENGTH_TILES
+        self.end_tile = (start_tile[0] + dx, start_tile[1] + dy)
+        
         self.on_duration = on_duration
         self.off_duration = off_duration
         self.is_on = start_on
@@ -154,10 +164,10 @@ class Laser:
         self.beam_width = 6
         self.warning_time = 30
         
-        start_x = start_tile[0] * TILE_SIZE + TILE_SIZE // 2
-        start_y = start_tile[1] * TILE_SIZE + TILE_SIZE // 2
-        end_x = end_tile[0] * TILE_SIZE + TILE_SIZE // 2
-        end_y = end_tile[1] * TILE_SIZE + TILE_SIZE // 2
+        start_x = self.start_tile[0] * TILE_SIZE + TILE_SIZE // 2
+        start_y = self.start_tile[1] * TILE_SIZE + TILE_SIZE // 2
+        end_x = self.end_tile[0] * TILE_SIZE + TILE_SIZE // 2
+        end_y = self.end_tile[1] * TILE_SIZE + TILE_SIZE // 2
         
         if start_x == end_x:
             self.orientation = 'vertical'

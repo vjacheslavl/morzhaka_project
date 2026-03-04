@@ -12,7 +12,7 @@ from sprites import (
     create_boss_sprite, create_ice_boss_sprite,
     create_final_boss_sprite, create_shadow_boss_sprite
 )
-from pathfinding import find_path
+from pathfinding import find_path, find_path_for_large_entity
 from projectiles import EnemyProjectile, BossProjectile
 
 
@@ -744,6 +744,9 @@ class Boss:
         self.teleport_interval = 300
         self.blink_timer = 0
         self.blink_duration = 8
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 15
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -769,21 +772,74 @@ class Boss:
             self.x = new_pos[0]
             self.y = new_pos[1]
 
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path_for_large_entity(
+            my_tile, player_tile, dungeon.tiles, TILE_SIZE, self.width, self.height
+        )
+
     def move_towards_player(self, player, dungeon):
         dx = player.x - self.x
         dy = player.y - self.y
-        
         distance = (dx ** 2 + dy ** 2) ** 0.5
+        
         if distance < 100:
             return
         
-        if distance > 0:
-            dx = dx / distance
-            dy = dy / distance
-            
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+        
+        if not self.path:
+            self._move_directly_towards(player, dungeon)
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE
+        target_y = target_tile[1] * TILE_SIZE
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_target = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist_to_target < self.speed * 2:
+            self.path.pop(0)
+        
+        if dist_to_target > 0:
+            dx = dx / dist_to_target
+            dy = dy / dist_to_target
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
+            moved = False
+            if not dungeon.is_wall(new_x, new_y, self.width, self.height):
+                self.x = new_x
+                self.y = new_y
+                moved = True
+            else:
+                if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                    self.x = new_x
+                    moved = True
+                if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                    self.y = new_y
+                    moved = True
+            
+            if not moved:
+                self.path = []
+
+    def _move_directly_towards(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
                 self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
@@ -867,6 +923,9 @@ class IceBoss:
         self.teleport_interval = 250
         self.blink_timer = 0
         self.blink_duration = 8
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 15
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -891,21 +950,74 @@ class IceBoss:
             new_pos = random.choice(valid_positions)
             self.x, self.y = new_pos
 
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path_for_large_entity(
+            my_tile, player_tile, dungeon.tiles, TILE_SIZE, self.width, self.height
+        )
+
     def move_towards_player(self, player, dungeon):
         dx = player.x - self.x
         dy = player.y - self.y
-
         distance = (dx ** 2 + dy ** 2) ** 0.5
+
         if distance < 100:
             return
 
-        if distance > 0:
-            dx = dx / distance
-            dy = dy / distance
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
 
+        if not self.path:
+            self._move_directly_towards(player, dungeon)
+            return
+
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE
+        target_y = target_tile[1] * TILE_SIZE
+
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_target = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist_to_target < self.speed * 2:
+            self.path.pop(0)
+
+        if dist_to_target > 0:
+            dx = dx / dist_to_target
+            dy = dy / dist_to_target
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
 
+            moved = False
+            if not dungeon.is_wall(new_x, new_y, self.width, self.height):
+                self.x = new_x
+                self.y = new_y
+                moved = True
+            else:
+                if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                    self.x = new_x
+                    moved = True
+                if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                    self.y = new_y
+                    moved = True
+
+            if not moved:
+                self.path = []
+
+    def _move_directly_towards(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
                 self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
@@ -991,6 +1103,9 @@ class FinalBoss:
         self.teleport_interval = 180
         self.blink_timer = 0
         self.blink_duration = 8
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 15
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -1016,21 +1131,74 @@ class FinalBoss:
             self.x = new_pos[0]
             self.y = new_pos[1]
 
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path_for_large_entity(
+            my_tile, player_tile, dungeon.tiles, TILE_SIZE, self.width, self.height
+        )
+
     def move_towards_player(self, player, dungeon):
         dx = player.x - self.x
         dy = player.y - self.y
-        
         distance = (dx ** 2 + dy ** 2) ** 0.5
+        
         if distance < 80:
             return
         
-        if distance > 0:
-            dx = dx / distance
-            dy = dy / distance
-            
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+        
+        if not self.path:
+            self._move_directly_towards(player, dungeon)
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE
+        target_y = target_tile[1] * TILE_SIZE
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_target = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist_to_target < self.speed * 2:
+            self.path.pop(0)
+        
+        if dist_to_target > 0:
+            dx = dx / dist_to_target
+            dy = dy / dist_to_target
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
+            moved = False
+            if not dungeon.is_wall(new_x, new_y, self.width, self.height):
+                self.x = new_x
+                self.y = new_y
+                moved = True
+            else:
+                if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                    self.x = new_x
+                    moved = True
+                if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                    self.y = new_y
+                    moved = True
+            
+            if not moved:
+                self.path = []
+
+    def _move_directly_towards(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
                 self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
@@ -1114,6 +1282,9 @@ class ShadowBoss:
         self.blink_timer = 0
         self.blink_duration = 8
         self.phase = 1
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 12
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -1138,22 +1309,77 @@ class ShadowBoss:
             new_pos = random.choice(valid_positions)
             self.x, self.y = new_pos
 
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path_for_large_entity(
+            my_tile, player_tile, dungeon.tiles, TILE_SIZE, self.width, self.height
+        )
+
     def move_towards_player(self, player, dungeon):
         dx = player.x - self.x
         dy = player.y - self.y
-
         distance = (dx ** 2 + dy ** 2) ** 0.5
+
         if distance < 80:
             return
 
-        if distance > 0:
-            dx = dx / distance
-            dy = dy / distance
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
 
-            speed = self.speed if self.phase == 1 else self.speed * 1.2
+        if not self.path:
+            self._move_directly_towards(player, dungeon)
+            return
+
+        speed = self.speed if self.phase == 1 else self.speed * 1.2
+
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE
+        target_y = target_tile[1] * TILE_SIZE
+
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_target = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist_to_target < speed * 2:
+            self.path.pop(0)
+
+        if dist_to_target > 0:
+            dx = dx / dist_to_target
+            dy = dy / dist_to_target
             new_x = self.x + dx * speed
             new_y = self.y + dy * speed
 
+            moved = False
+            if not dungeon.is_wall(new_x, new_y, self.width, self.height):
+                self.x = new_x
+                self.y = new_y
+                moved = True
+            else:
+                if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                    self.x = new_x
+                    moved = True
+                if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                    self.y = new_y
+                    moved = True
+
+            if not moved:
+                self.path = []
+
+    def _move_directly_towards(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        distance = (dx ** 2 + dy ** 2) ** 0.5
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
+            speed = self.speed if self.phase == 1 else self.speed * 1.2
+            new_x = self.x + dx * speed
+            new_y = self.y + dy * speed
             if not dungeon.is_wall(new_x, self.y, self.width, self.height):
                 self.x = new_x
             if not dungeon.is_wall(self.x, new_y, self.width, self.height):
