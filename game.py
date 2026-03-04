@@ -1,6 +1,7 @@
 import pygame
 import sys
 import heapq
+import random
 
 # Initialize Pygame
 pygame.init()
@@ -1751,10 +1752,18 @@ class FinalBoss:
 
 
 class Projectile:
+    SPREAD_AMOUNT = 0.05
+    
     def __init__(self, x, y, direction):
         self.x = x
         self.y = y
-        self.direction = list(direction)
+        spread = random.choice([-Projectile.SPREAD_AMOUNT, 0, Projectile.SPREAD_AMOUNT])
+        if direction[0] != 0 and direction[1] == 0:
+            self.direction = [direction[0], spread]
+        elif direction[1] != 0 and direction[0] == 0:
+            self.direction = [spread, direction[1]]
+        else:
+            self.direction = [direction[0] + spread * 0.5, direction[1] + spread * 0.5]
         self.speed = PROJECTILE_SPEED
         self.size = PROJECTILE_SIZE
         self.active = True
@@ -1825,11 +1834,21 @@ class Projectile:
 
 class IceProjectile:
     """Piercing ice bullet - goes through enemies and deals damage to all in path."""
+    SPREAD_AMOUNT = 0.05
+    
     def __init__(self, x, y, direction):
         self.x = x
         self.y = y
-        self.direction = list(direction)
+        spread = random.choice([-IceProjectile.SPREAD_AMOUNT, 0, IceProjectile.SPREAD_AMOUNT])
+        if direction[0] != 0 and direction[1] == 0:
+            self.direction = [direction[0], spread]
+        elif direction[1] != 0 and direction[0] == 0:
+            self.direction = [spread, direction[1]]
+        else:
+            self.direction = [direction[0] + spread * 0.5, direction[1] + spread * 0.5]
         self.speed = PROJECTILE_SPEED + 2
+        self.acceleration = 0.15
+        self.max_speed = PROJECTILE_SPEED + 10
         self.size = 8
         self.active = True
         self.has_ricocheted = False
@@ -1838,6 +1857,9 @@ class IceProjectile:
         self.hit_enemies = set()
 
     def update(self, dungeon):
+        if self.speed < self.max_speed:
+            self.speed += self.acceleration
+        
         if self.has_ricocheted:
             self.ricochet_timer += 1
             if self.ricochet_timer >= self.ricochet_lifetime:
@@ -1934,10 +1956,18 @@ class DeathParticle:
 
 class ExplosiveProjectile:
     """Gray explosive bullet - explodes on impact, damages nearby enemies."""
+    SPREAD_AMOUNT = 0.05
+    
     def __init__(self, x, y, direction):
         self.x = x
         self.y = y
-        self.direction = list(direction)
+        spread = random.choice([-ExplosiveProjectile.SPREAD_AMOUNT, 0, ExplosiveProjectile.SPREAD_AMOUNT])
+        if direction[0] != 0 and direction[1] == 0:
+            self.direction = [direction[0], spread]
+        elif direction[1] != 0 and direction[0] == 0:
+            self.direction = [spread, direction[1]]
+        else:
+            self.direction = [direction[0] + spread * 0.5, direction[1] + spread * 0.5]
         self.speed = PROJECTILE_SPEED + 3
         self.size = 10
         self.active = True
