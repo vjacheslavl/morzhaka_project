@@ -39,6 +39,8 @@ class Game:
         self.in_menu = True
         self.in_settings = False
         self.in_cutscene = False
+        self.paused = False
+        self.pause_selection = 0
         self.cutscene_page = 0
         self.cutscene_timer = 0
         self.cutscene_fade = 0
@@ -399,6 +401,7 @@ class Game:
         spawn = self.dungeon.spawn_point
         self.player.x = spawn[0] * TILE_SIZE + 4
         self.player.y = spawn[1] * TILE_SIZE + 4
+        self.player.reset_velocity()
         self.spawn_enemies()
         self.projectiles = []
         self.enemy_projectiles = []
@@ -437,7 +440,9 @@ class Game:
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             dx = 1
         
-        if dx != 0 or dy != 0:
+        if self.current_location == 2:
+            self.player.move_on_ice(dx, dy, self.dungeon, self.enemies, self.boss, self.final_boss)
+        elif dx != 0 or dy != 0:
             self.player.move(dx, dy, self.dungeon, self.enemies, self.boss, self.final_boss)
         
         if keys[pygame.K_1]:
@@ -903,6 +908,69 @@ class Game:
         controls_text = self.small_font.render("UP/DOWN: select | LEFT/RIGHT: adjust | ENTER/ESC: back", True, GRAY)
         self.screen.blit(controls_text, (SCREEN_WIDTH // 2 - controls_text.get_width() // 2, SCREEN_HEIGHT - 50))
 
+    def draw_pause_menu(self):
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
+        
+        title_text = self.title_font.render("PAUSED", True, YELLOW)
+        title_shadow = self.title_font.render("PAUSED", True, (80, 60, 0))
+        self.screen.blit(title_shadow, (SCREEN_WIDTH // 2 - title_text.get_width() // 2 + 3, SCREEN_HEIGHT // 2 - 97))
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, SCREEN_HEIGHT // 2 - 100))
+        
+        resume_color = YELLOW if self.pause_selection == 0 else WHITE
+        exit_color = YELLOW if self.pause_selection == 1 else WHITE
+        
+        resume_text = self.menu_font.render("RESUME", True, resume_color)
+        exit_text = self.menu_font.render("EXIT", True, exit_color)
+        
+        menu_items = [resume_text, exit_text]
+        menu_y_positions = [SCREEN_HEIGHT // 2, SCREEN_HEIGHT // 2 + 60]
+        
+        arrow_text = self.menu_font.render(">", True, YELLOW)
+        self.screen.blit(arrow_text, (SCREEN_WIDTH // 2 - menu_items[self.pause_selection].get_width() // 2 - 40, menu_y_positions[self.pause_selection]))
+        
+        self.screen.blit(resume_text, (SCREEN_WIDTH // 2 - resume_text.get_width() // 2, SCREEN_HEIGHT // 2))
+        self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, SCREEN_HEIGHT // 2 + 60))
+        
+        controls_text = self.small_font.render("UP/DOWN: select | ENTER: confirm | ESC: resume", True, GRAY)
+        self.screen.blit(controls_text, (SCREEN_WIDTH // 2 - controls_text.get_width() // 2, SCREEN_HEIGHT - 50))
+
+    def draw_paused(self):
+        self.screen.fill(BLACK)
+        self.dungeon.draw(self.screen)
+        self.player.draw(self.screen)
+        
+        for enemy in self.enemies:
+            enemy.draw(self.screen)
+        
+        if self.boss:
+            self.boss.draw(self.screen)
+        
+        if self.final_boss:
+            self.final_boss.draw(self.screen)
+
+        if self.shadow_boss:
+            self.shadow_boss.draw(self.screen)
+
+        for projectile in self.projectiles:
+            projectile.draw(self.screen)
+
+        for particle in self.death_particles:
+            particle.draw(self.screen)
+
+        for proj in self.boss_projectiles:
+            proj.draw(self.screen)
+        
+        for proj in self.enemy_projectiles:
+            proj.draw(self.screen)
+        
+        for kit in self.health_kits:
+            kit.draw(self.screen)
+        
+        self.draw_pause_menu()
+        pygame.display.flip()
+
     def toggle_fullscreen(self):
         self.is_fullscreen = not self.is_fullscreen
         if self.is_fullscreen:
@@ -968,9 +1036,23 @@ class Game:
                         elif event.key == pygame.K_ESCAPE:
                             self.in_cutscene = False
                             self.start_game()
+                    elif self.paused:
+                        if event.key == pygame.K_ESCAPE:
+                            self.paused = False
+                        elif event.key == pygame.K_UP or event.key == pygame.K_w:
+                            self.pause_selection = (self.pause_selection - 1) % 2
+                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                            self.pause_selection = (self.pause_selection + 1) % 2
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                            if self.pause_selection == 0:
+                                self.paused = False
+                            else:
+                                self.running = False
                     else:
                         if event.key == pygame.K_ESCAPE:
-                            self.running = False
+                            if not self.game_won and not self.game_over:
+                                self.paused = True
+                                self.pause_selection = 0
                         elif event.key == pygame.K_p and not self.game_won and not self.game_over:
                             self.next_level()
                         elif event.key == pygame.K_r and (self.game_won or self.game_over):
@@ -988,6 +1070,7 @@ class Game:
                             self.player.y = spawn[1] * TILE_SIZE + 4
                             self.player.health = self.player.max_health
                             self.player.last_direction = (1, 0)
+                            self.player.reset_velocity()
                             self.spawn_enemies()
                             self.projectiles = []
                             self.enemy_projectiles = []
@@ -1016,6 +1099,8 @@ class Game:
                 self.update_cutscene()
                 self.draw_cutscene()
                 pygame.display.flip()
+            elif self.paused:
+                self.draw_paused()
             else:
                 self.handle_input()
                 self.update()

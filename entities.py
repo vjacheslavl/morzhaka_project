@@ -26,6 +26,11 @@ class Player:
         self.is_moving = False
         self.blink_timer = 0
         self.blink_duration = 10
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self.ice_friction = 0.92
+        self.ice_acceleration = 0.4
+        self.ice_max_speed = PLAYER_SPEED * 1.2
 
     def would_collide_with_enemies(self, new_x, new_y, enemies, boss=None, final_boss=None):
         player_rect = pygame.Rect(new_x, new_y, self.width, self.height)
@@ -65,6 +70,59 @@ class Player:
                 self.sprite = self.sprites[self.walk_frame]
         else:
             self.is_moving = False
+
+    def move_on_ice(self, dx, dy, dungeon, enemies=None, boss=None, final_boss=None):
+        if enemies is None:
+            enemies = []
+        
+        if dx != 0 or dy != 0:
+            self.velocity_x += dx * self.ice_acceleration
+            self.velocity_y += dy * self.ice_acceleration
+            self.last_direction = (dx, dy)
+        
+        self.velocity_x *= self.ice_friction
+        self.velocity_y *= self.ice_friction
+        
+        speed = (self.velocity_x ** 2 + self.velocity_y ** 2) ** 0.5
+        if speed > self.ice_max_speed:
+            self.velocity_x = (self.velocity_x / speed) * self.ice_max_speed
+            self.velocity_y = (self.velocity_y / speed) * self.ice_max_speed
+        
+        if abs(self.velocity_x) < 0.1:
+            self.velocity_x = 0
+        if abs(self.velocity_y) < 0.1:
+            self.velocity_y = 0
+        
+        old_x, old_y = self.x, self.y
+        new_x = self.x + self.velocity_x
+        new_y = self.y + self.velocity_y
+        
+        can_move_x = not dungeon.is_wall(new_x, self.y, self.width, self.height)
+        can_move_y = not dungeon.is_wall(self.x, new_y, self.width, self.height)
+        
+        if can_move_x and not self.would_collide_with_enemies(new_x, self.y, enemies, boss, final_boss):
+            self.x = new_x
+        else:
+            self.velocity_x = 0
+        
+        if can_move_y and not self.would_collide_with_enemies(self.x, new_y, enemies, boss, final_boss):
+            self.y = new_y
+        else:
+            self.velocity_y = 0
+        
+        if self.x != old_x or self.y != old_y:
+            self.is_moving = True
+            self.walk_timer += 1
+            if self.walk_timer >= self.walk_speed:
+                self.walk_timer = 0
+                self.walk_frame = 1 - self.walk_frame
+                self.sprite = self.sprites[self.walk_frame]
+        else:
+            self.is_moving = False
+
+    def reset_velocity(self):
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
 
     def update(self):
         if not self.is_moving:

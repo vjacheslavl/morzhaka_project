@@ -735,6 +735,7 @@ class Boss:
         self.sprite = create_boss_sprite()
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
+        self.base_speed = BOSS_SPEED
         self.speed = BOSS_SPEED
         self.max_health = BOSS_HEALTH
         self.health = self.max_health
@@ -747,6 +748,10 @@ class Boss:
         self.path = []
         self.path_update_timer = 0
         self.path_update_interval = 15
+        self.speed_boost_timer = 0
+        self.speed_boost_duration = 90
+        self.speed_boost_cooldown = 360
+        self.is_speed_boosted = False
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -772,6 +777,19 @@ class Boss:
             self.x = new_pos[0]
             self.y = new_pos[1]
 
+    def update_speed_boost(self):
+        self.speed_boost_timer += 1
+        if self.is_speed_boosted:
+            if self.speed_boost_timer >= self.speed_boost_duration:
+                self.is_speed_boosted = False
+                self.speed = self.base_speed
+                self.speed_boost_timer = 0
+        else:
+            if self.speed_boost_timer >= self.speed_boost_cooldown:
+                self.is_speed_boosted = True
+                self.speed = self.base_speed * 2
+                self.speed_boost_timer = 0
+
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
                    int((self.y + self.height // 2) // TILE_SIZE))
@@ -782,6 +800,8 @@ class Boss:
         )
 
     def move_towards_player(self, player, dungeon):
+        self.update_speed_boost()
+        
         dx = player.x - self.x
         dy = player.y - self.y
         distance = (dx ** 2 + dy ** 2) ** 0.5
@@ -914,6 +934,7 @@ class IceBoss:
         self.sprite = create_ice_boss_sprite()
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
+        self.base_speed = BOSS_SPEED
         self.speed = BOSS_SPEED
         self.max_health = 50
         self.health = self.max_health
@@ -926,6 +947,10 @@ class IceBoss:
         self.path = []
         self.path_update_timer = 0
         self.path_update_interval = 15
+        self.speed_boost_timer = 0
+        self.speed_boost_duration = 90
+        self.speed_boost_cooldown = 360
+        self.is_speed_boosted = False
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -950,6 +975,19 @@ class IceBoss:
             new_pos = random.choice(valid_positions)
             self.x, self.y = new_pos
 
+    def update_speed_boost(self):
+        self.speed_boost_timer += 1
+        if self.is_speed_boosted:
+            if self.speed_boost_timer >= self.speed_boost_duration:
+                self.is_speed_boosted = False
+                self.speed = self.base_speed
+                self.speed_boost_timer = 0
+        else:
+            if self.speed_boost_timer >= self.speed_boost_cooldown:
+                self.is_speed_boosted = True
+                self.speed = self.base_speed * 2
+                self.speed_boost_timer = 0
+
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
                    int((self.y + self.height // 2) // TILE_SIZE))
@@ -960,6 +998,8 @@ class IceBoss:
         )
 
     def move_towards_player(self, player, dungeon):
+        self.update_speed_boost()
+        
         dx = player.x - self.x
         dy = player.y - self.y
         distance = (dx ** 2 + dy ** 2) ** 0.5
@@ -1094,6 +1134,7 @@ class FinalBoss:
         self.sprite = create_final_boss_sprite()
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
+        self.base_speed = FINAL_BOSS_SPEED
         self.speed = FINAL_BOSS_SPEED
         self.max_health = FINAL_BOSS_HEALTH
         self.health = self.max_health
@@ -1106,6 +1147,10 @@ class FinalBoss:
         self.path = []
         self.path_update_timer = 0
         self.path_update_interval = 15
+        self.speed_boost_timer = 0
+        self.speed_boost_duration = 90
+        self.speed_boost_cooldown = 360
+        self.is_speed_boosted = False
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -1131,6 +1176,19 @@ class FinalBoss:
             self.x = new_pos[0]
             self.y = new_pos[1]
 
+    def update_speed_boost(self):
+        self.speed_boost_timer += 1
+        if self.is_speed_boosted:
+            if self.speed_boost_timer >= self.speed_boost_duration:
+                self.is_speed_boosted = False
+                self.speed = self.base_speed
+                self.speed_boost_timer = 0
+        else:
+            if self.speed_boost_timer >= self.speed_boost_cooldown:
+                self.is_speed_boosted = True
+                self.speed = self.base_speed * 2
+                self.speed_boost_timer = 0
+
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
                    int((self.y + self.height // 2) // TILE_SIZE))
@@ -1141,6 +1199,8 @@ class FinalBoss:
         )
 
     def move_towards_player(self, player, dungeon):
+        self.update_speed_boost()
+        
         dx = player.x - self.x
         dy = player.y - self.y
         distance = (dx ** 2 + dy ** 2) ** 0.5
@@ -1272,6 +1332,7 @@ class ShadowBoss:
         self.sprite = create_shadow_boss_sprite()
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
+        self.base_speed = BOSS_SPEED * 1.3
         self.speed = BOSS_SPEED * 1.3
         self.max_health = 150
         self.health = self.max_health
@@ -1285,6 +1346,10 @@ class ShadowBoss:
         self.path = []
         self.path_update_timer = 0
         self.path_update_interval = 12
+        self.speed_boost_timer = 0
+        self.speed_boost_duration = 90
+        self.speed_boost_cooldown = 360
+        self.is_speed_boosted = False
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -1309,6 +1374,19 @@ class ShadowBoss:
             new_pos = random.choice(valid_positions)
             self.x, self.y = new_pos
 
+    def update_speed_boost(self):
+        self.speed_boost_timer += 1
+        if self.is_speed_boosted:
+            if self.speed_boost_timer >= self.speed_boost_duration:
+                self.is_speed_boosted = False
+                self.speed = self.base_speed
+                self.speed_boost_timer = 0
+        else:
+            if self.speed_boost_timer >= self.speed_boost_cooldown:
+                self.is_speed_boosted = True
+                self.speed = self.base_speed * 2
+                self.speed_boost_timer = 0
+
     def update_path(self, player, dungeon):
         my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
                    int((self.y + self.height // 2) // TILE_SIZE))
@@ -1319,6 +1397,8 @@ class ShadowBoss:
         )
 
     def move_towards_player(self, player, dungeon):
+        self.update_speed_boost()
+        
         dx = player.x - self.x
         dy = player.y - self.y
         distance = (dx ** 2 + dy ** 2) ** 0.5

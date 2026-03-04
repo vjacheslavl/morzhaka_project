@@ -49,8 +49,8 @@ def create_levels():
         'enemy_spawn': (21, 9),
         'enemy_count': 3,
         'lasers': [
-            {'start': (1, 7), 'end': (9, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': True},
-            {'start': (12, 7), 'end': (17, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': False},
+            {'start': (1, 7), 'end': (5, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': True},
+            {'start': (12, 7), 'end': (14, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': False},
         ]
     }
     levels.append(level2)
@@ -78,8 +78,8 @@ def create_levels():
         'enemy_spawn': (20, 9),
         'enemy_count': 6,
         'lasers': [
-            {'start': (6, 5), 'end': (11, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': True},
-            {'start': (13, 5), 'end': (21, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': False},
+            {'start': (6, 5), 'end': (9, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': True},
+            {'start': (13, 5), 'end': (17, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': False},
             {'start': (7, 9), 'end': (7, 11), 'on_duration': 60, 'off_duration': 100, 'start_on': True},
         ]
     }
@@ -137,9 +137,9 @@ def create_levels():
         'enemy_count': 3,
         'location': 2,
         'lasers': [
-            {'start': (1, 6), 'end': (7, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': True},
-            {'start': (12, 6), 'end': (17, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': False},
-            {'start': (4, 8), 'end': (11, 8), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
+            {'start': (1, 6), 'end': (5, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': True},
+            {'start': (12, 6), 'end': (15, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': False},
+            {'start': (4, 8), 'end': (8, 8), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
         ]
     }
     levels.append(level5)
@@ -167,8 +167,8 @@ def create_levels():
         'enemy_count': 4,
         'location': 2,
         'lasers': [
-            {'start': (1, 7), 'end': (7, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
-            {'start': (14, 7), 'end': (22, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': False},
+            {'start': (1, 7), 'end': (6, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
+            {'start': (14, 7), 'end': (17, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': False},
         ]
     }
     levels.append(level6)
