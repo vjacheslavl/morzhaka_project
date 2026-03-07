@@ -3,7 +3,7 @@ import sys
 import random
 
 from constants import (
-    SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE,
+    SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, PLAYER_SPEED,
     BLACK, WHITE, GREEN, GRAY, YELLOW, RED, DARK_RED,
     ICE_FLOOR_COLOR, FINAL_BOSS_COLOR
 )
@@ -15,7 +15,7 @@ from sprites import create_player_sprites, create_player_sprite
 from entities import Player, HealthKit, DeathParticle
 from enemies import (
     Enemy, IceEnemy, CastleEnemyFast, CastleEnemyShooter,
-    Boss, IceBoss, FinalBoss, ShadowBoss
+    Boss, IceBoss, FinalBoss, ShadowBoss, ShadowEnemy
 )
 from projectiles import Projectile, IceProjectile, ExplosiveProjectile
 from dungeon import Dungeon
@@ -39,6 +39,7 @@ class Game:
         self.in_menu = True
         self.in_settings = False
         self.in_cutscene = False
+        self.in_ending_cutscene = False
         self.paused = False
         self.pause_selection = 0
         self.cutscene_page = 0
@@ -51,6 +52,7 @@ class Game:
         self.is_fullscreen = False
         self.init_menu_background()
         self.init_cutscene()
+        self.init_ending_cutscene()
         self.set_volume(self.master_volume)
         
         self.levels = create_levels()
@@ -60,6 +62,32 @@ class Game:
         self.explosive_bullet_unlocked = False
         self.selected_bullet = 1
         self.death_particles = []
+        
+        self.dungeon_unlocked = True
+        self.ice_cave_unlocked = False
+        self.castle_unlocked = False
+        self.dungeon_completed = False
+        self.ice_cave_completed = False
+        self.is_village = True
+        self.coins = 0
+        
+        self.has_dash = False
+        self.has_laser = False
+        self.has_shield = False
+        self.current_ability = 0
+        self.ability_cooldown = 0
+        self.dash_active = False
+        self.dash_timer = 0
+        self.shield_active = False
+        self.shield_timer = 0
+        self.player_lasers = []
+        self.laser_cooldown = 0
+        self.laser_immune_enemies = {}
+        self.in_shop = False
+        self.shop_selection = 0
+        self.in_inventory = False
+        self.inventory_selection = 0
+        
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
         
         spawn = self.dungeon.spawn_point
@@ -84,7 +112,6 @@ class Game:
         self.enemy_projectiles = []
         self.is_boss_level = False
         self.is_shadow_boss_level = False
-        self.is_final_boss_level = False
         
         self.health_kits = []
         self.health_kit_timer = 0
@@ -149,6 +176,153 @@ class Game:
         ]
         self.cutscene_player_x = -50
         self.cutscene_player_sprite = create_player_sprites()
+
+    def init_ending_cutscene(self):
+        self.ending_pages = [
+            {
+                "title": "VICTORY!",
+                "text": [
+                    "With a final strike, Shadow Byako falls.",
+                    "The dark lord's reign of terror has ended.",
+                    "Light returns to the land..."
+                ],
+                "bg_color": (20, 15, 30)
+            },
+            {
+                "title": "THE SHADOW FADES",
+                "text": [
+                    "As Shadow Byako's form dissolves,",
+                    "the cursed castle begins to crumble.",
+                    "You must escape quickly!"
+                ],
+                "bg_color": (30, 20, 25)
+            },
+            {
+                "title": "MASTER MORZHAKA",
+                "text": [
+                    "You return to Morzhaka Village as a hero.",
+                    "Master Morzhaka greets you with pride:",
+                    "\"You have surpassed all my teachings.\"",
+                    "\"The darkness will not return for generations.\""
+                ],
+                "bg_color": (25, 35, 20)
+            },
+            {
+                "title": "A NEW DAWN",
+                "text": [
+                    "Peace returns to the land.",
+                    "The villages rebuild, the people rejoice.",
+                    "But you know that evil never truly dies...",
+                    "",
+                    "Perhaps one day, a new threat will arise.",
+                    "And you will be ready."
+                ],
+                "bg_color": (40, 50, 60)
+            },
+            {
+                "title": "THE END",
+                "text": [
+                    "Thank you for playing!",
+                    "",
+                    "You have defeated Shadow Byako",
+                    "and saved the world of Morzhaka.",
+                    "",
+                    "Congratulations, hero!"
+                ],
+                "bg_color": (10, 10, 20)
+            }
+        ]
+        self.ending_page = 0
+        self.ending_timer = 0
+        self.ending_fade = 0
+        self.ending_text_progress = 0
+
+    def start_ending_cutscene(self):
+        self.in_ending_cutscene = True
+        self.paused = False
+        self.in_shop = False
+        self.in_inventory = False
+        self.in_settings = False
+        self.game_won = False
+        self.game_over = False
+        self.ending_page = 0
+        self.ending_timer = 0
+        self.ending_fade = 0
+        self.ending_text_progress = 0
+        if self.current_music:
+            self.current_music.stop()
+
+    def advance_ending_cutscene(self):
+        self.ending_page += 1
+        self.ending_timer = 0
+        self.ending_text_progress = 0
+        self.ending_fade = 0
+
+        if self.ending_page >= len(self.ending_pages):
+            self.in_ending_cutscene = False
+            self.game_won = True
+
+    def update_ending_cutscene(self):
+        self.ending_timer += 1
+
+        if self.ending_fade < 255:
+            self.ending_fade = min(255, self.ending_fade + 4)
+
+        page_data = self.ending_pages[self.ending_page]
+        total_chars = sum(len(line) for line in page_data["text"])
+        if self.ending_text_progress < total_chars:
+            self.ending_text_progress += 0.4
+
+    def draw_ending_cutscene(self):
+        page_data = self.ending_pages[self.ending_page]
+        self.screen.fill(page_data["bg_color"])
+
+        alpha = self.ending_fade
+
+        if page_data["title"] == "THE END":
+            title_color = (255, 215, 0)
+        elif page_data["title"] == "VICTORY!":
+            title_color = (100, 255, 100)
+        else:
+            title_color = (200, 180, 150)
+        
+        title_text = self.title_font.render(page_data["title"], True, title_color)
+        title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, 80))
+
+        title_with_alpha = pygame.Surface(title_text.get_size(), pygame.SRCALPHA)
+        title_with_alpha.blit(title_text, (0, 0))
+        title_with_alpha.set_alpha(alpha)
+        self.screen.blit(title_with_alpha, title_rect)
+
+        y_offset = 180
+        chars_shown = int(self.ending_text_progress)
+        current_char = 0
+
+        for line in page_data["text"]:
+            if current_char >= chars_shown:
+                break
+            line_chars = min(len(line), chars_shown - current_char)
+            current_char += len(line)
+            display_line = line[:line_chars]
+
+            text_surface = self.cutscene_font.render(display_line, True, (220, 220, 220))
+            text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, y_offset))
+
+            text_with_alpha = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
+            text_with_alpha.blit(text_surface, (0, 0))
+            text_with_alpha.set_alpha(alpha)
+            self.screen.blit(text_with_alpha, text_rect)
+
+            y_offset += 40
+
+        progress_text = f"Page {self.ending_page + 1}/{len(self.ending_pages)}"
+        progress_surface = self.small_font.render(progress_text, True, (100, 100, 100))
+        self.screen.blit(progress_surface, (10, SCREEN_HEIGHT - 30))
+
+        hint_text = "Press SPACE or ENTER to continue..."
+        hint_surface = self.small_font.render(hint_text, True, (150, 150, 150))
+        hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
+        self.screen.blit(hint_surface, hint_rect)
 
     def start_cutscene(self):
         self.in_menu = False
@@ -250,6 +424,37 @@ class Game:
         self.current_music = music
         self.current_music.play(-1)
 
+    def check_village_doors(self):
+        if not self.is_village:
+            return
+        
+        level_data = self.levels[self.current_level]
+        doors = level_data.get('doors', {})
+        
+        player_tile_x = int(self.player.x // TILE_SIZE)
+        player_tile_y = int(self.player.y // TILE_SIZE)
+        
+        if 'castle' in doors:
+            door_pos = doors['castle']
+            if player_tile_y <= 2 and 10 <= player_tile_x <= 14:
+                if self.castle_unlocked:
+                    self.go_to_level(10)
+                    return
+        
+        if 'ice_cave' in doors:
+            door_pos = doors['ice_cave']
+            if player_tile_x <= 2 and 6 <= player_tile_y <= 8:
+                if self.ice_cave_unlocked and not self.ice_cave_completed:
+                    self.go_to_level(5)
+                    return
+        
+        if 'dungeon' in doors:
+            door_pos = doors['dungeon']
+            if player_tile_x >= 22 and 6 <= player_tile_y <= 8:
+                if self.dungeon_unlocked and not self.dungeon_completed:
+                    self.go_to_level(1)
+                    return
+
     def spawn_enemies(self):
         self.enemies = []
         self.boss = None
@@ -259,15 +464,12 @@ class Game:
         self.enemy_projectiles = []
         level_data = self.levels[self.current_level]
         self.current_location = level_data.get('location', 1)
+        self.is_village = level_data.get('is_village', False)
         
         self.is_boss_level = level_data.get('is_boss_level', False)
-        self.is_final_boss_level = level_data.get('is_final_boss', False)
         self.is_shadow_boss_level = level_data.get('is_shadow_boss', False)
 
-        if self.is_final_boss_level:
-            boss_x = 20 * TILE_SIZE
-            boss_y = 6 * TILE_SIZE
-            self.final_boss = FinalBoss(boss_x, boss_y)
+        if self.is_village:
             return
 
         if self.is_shadow_boss_level:
@@ -279,7 +481,11 @@ class Game:
         if self.is_boss_level:
             boss_x = 20 * TILE_SIZE
             boss_y = 6 * TILE_SIZE
-            if self.current_location == 2:
+            if level_data.get('is_ice_boss', False):
+                self.final_boss = FinalBoss(boss_x, boss_y)
+            elif level_data.get('is_dungeon_boss', False):
+                self.boss = Boss(boss_x, boss_y)
+            elif self.current_location == 2:
                 self.boss = IceBoss(boss_x, boss_y)
             else:
                 self.boss = Boss(boss_x, boss_y)
@@ -322,9 +528,11 @@ class Game:
                     spawned += 1
 
     def spawn_one_enemy(self):
-        if self.is_boss_level or self.is_final_boss_level:
+        if self.is_boss_level or self.is_shadow_boss_level or self.is_village:
             return
         level_data = self.levels[self.current_level]
+        if level_data.get('enemy_count', 0) == 0:
+            return
         exit_pos = level_data.get('exit')
         if exit_pos is None:
             return
@@ -371,6 +579,270 @@ class Game:
             kit_y = pos[1] * TILE_SIZE + (TILE_SIZE - 20) // 2
             self.health_kits.append(HealthKit(kit_x, kit_y))
 
+    def activate_ability(self):
+        if self.ability_cooldown > 0:
+            return
+        
+        if self.current_ability == 1:
+            self.dash_active = True
+            self.dash_timer = 60
+            self.ability_cooldown = 1800
+        elif self.current_ability == 2:
+            if self.laser_cooldown <= 0:
+                self.spawn_player_laser()
+                self.laser_cooldown = 2100
+        elif self.current_ability == 3:
+            self.shield_active = True
+            self.shield_timer = 900
+            self.ability_cooldown = 1800
+
+    def spawn_player_laser(self):
+        px = self.player.x + self.player.width // 2
+        py = self.player.y + self.player.height // 2
+        direction = self.player.last_direction
+        
+        player_tile_x = int(px // TILE_SIZE)
+        player_tile_y = int(py // TILE_SIZE)
+        
+        if direction[0] > 0:
+            start = (player_tile_x, player_tile_y)
+            end = (player_tile_x + 4, player_tile_y)
+            orientation = 'horizontal'
+        elif direction[0] < 0:
+            start = (player_tile_x - 4, player_tile_y)
+            end = (player_tile_x, player_tile_y)
+            orientation = 'horizontal'
+        elif direction[1] > 0:
+            start = (player_tile_x, player_tile_y)
+            end = (player_tile_x, player_tile_y + 4)
+            orientation = 'vertical'
+        else:
+            start = (player_tile_x, player_tile_y - 4)
+            end = (player_tile_x, player_tile_y)
+            orientation = 'vertical'
+        
+        start_x = start[0] * TILE_SIZE + TILE_SIZE // 2
+        start_y = start[1] * TILE_SIZE + TILE_SIZE // 2
+        end_x = end[0] * TILE_SIZE + TILE_SIZE // 2
+        end_y = end[1] * TILE_SIZE + TILE_SIZE // 2
+        
+        beam_width = 6
+        if orientation == 'vertical':
+            rect = pygame.Rect(
+                start_x - beam_width // 2,
+                min(start_y, end_y),
+                beam_width,
+                abs(end_y - start_y)
+            )
+        else:
+            rect = pygame.Rect(
+                min(start_x, end_x),
+                start_y - beam_width // 2,
+                abs(end_x - start_x),
+                beam_width
+            )
+        
+        self.player_lasers.append({
+            'start': start,
+            'end': end,
+            'orientation': orientation,
+            'rect': rect,
+            'emitter1': (start_x, start_y),
+            'emitter2': (end_x, end_y),
+            'animation_offset': 0
+        })
+
+    def update_abilities(self):
+        if self.ability_cooldown > 0:
+            self.ability_cooldown -= 1
+        
+        if self.dash_active:
+            self.dash_timer -= 1
+            if self.dash_timer <= 0:
+                self.dash_active = False
+        
+        if self.shield_active:
+            self.shield_timer -= 1
+            if self.shield_timer <= 0:
+                self.shield_active = False
+        
+        if self.laser_cooldown > 0:
+            self.laser_cooldown -= 1
+        
+        for laser in self.player_lasers:
+            laser['animation_offset'] = (laser['animation_offset'] + 2) % 20
+        
+        self.check_player_laser_damage()
+
+    def check_player_laser_damage(self):
+        if not self.player_lasers:
+            return
+        
+        enemies_to_remove = []
+        for enemy_id in list(self.laser_immune_enemies.keys()):
+            self.laser_immune_enemies[enemy_id] -= 1
+            if self.laser_immune_enemies[enemy_id] <= 0:
+                del self.laser_immune_enemies[enemy_id]
+        
+        for laser in self.player_lasers:
+            laser_rect = laser['rect']
+            
+            for enemy in self.enemies[:]:
+                enemy_id = id(enemy)
+                if enemy_id in self.laser_immune_enemies:
+                    continue
+                    
+                enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.width, enemy.height)
+                if laser_rect.colliderect(enemy_rect):
+                    self.laser_immune_enemies[enemy_id] = 12
+                    if hasattr(enemy, 'take_damage'):
+                        if enemy.take_damage(1):
+                            self.spawn_death_particles(enemy)
+                            if enemy in self.enemies:
+                                self.enemies.remove(enemy)
+                            self.coins += self.get_enemy_coin_reward()
+                            KILL_SOUND.play()
+                    else:
+                        self.spawn_death_particles(enemy)
+                        if enemy in self.enemies:
+                            self.enemies.remove(enemy)
+                        self.coins += self.get_enemy_coin_reward()
+                        KILL_SOUND.play()
+            
+            boss_id = "boss"
+            if self.boss and laser_rect.colliderect(pygame.Rect(self.boss.x, self.boss.y, self.boss.width, self.boss.height)):
+                if boss_id not in self.laser_immune_enemies:
+                    self.laser_immune_enemies[boss_id] = 12
+                    self.boss.take_damage(1)
+            
+            final_boss_id = "final_boss"
+            if self.final_boss and laser_rect.colliderect(pygame.Rect(self.final_boss.x, self.final_boss.y, self.final_boss.width, self.final_boss.height)):
+                if final_boss_id not in self.laser_immune_enemies:
+                    self.laser_immune_enemies[final_boss_id] = 12
+                    self.final_boss.take_damage(1)
+            
+            shadow_boss_id = "shadow_boss"
+            if self.shadow_boss and laser_rect.colliderect(pygame.Rect(self.shadow_boss.x, self.shadow_boss.y, self.shadow_boss.width, self.shadow_boss.height)):
+                if shadow_boss_id not in self.laser_immune_enemies:
+                    self.laser_immune_enemies[shadow_boss_id] = 12
+                    if self.shadow_boss.take_damage(1):
+                        self.shadow_boss = None
+                        self.coins += 10
+                        VICTORY_SOUND.play()
+                        self.start_ending_cutscene()
+
+    def draw_player_lasers(self):
+        if not self.player_lasers:
+            return
+        
+        for laser in self.player_lasers:
+            rect = laser['rect']
+            orientation = laser['orientation']
+            e1x, e1y = laser['emitter1']
+            e2x, e2y = laser['emitter2']
+            emitter_size = 10
+            
+            pygame.draw.rect(self.screen, (60, 80, 100), 
+                            (e1x - emitter_size // 2, e1y - emitter_size // 2, emitter_size, emitter_size))
+            pygame.draw.rect(self.screen, (60, 80, 100), 
+                            (e2x - emitter_size // 2, e2y - emitter_size // 2, emitter_size, emitter_size))
+            
+            core_color = (50, 150, 255)
+            edge_color = (200, 220, 255)
+            
+            glow_rect = rect.inflate(8, 8)
+            glow_surface = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surface, (50, 150, 255, 60), glow_surface.get_rect())
+            self.screen.blit(glow_surface, glow_rect.topleft)
+            
+            pygame.draw.rect(self.screen, core_color, rect)
+            
+            if orientation == 'horizontal':
+                pygame.draw.line(self.screen, edge_color, 
+                               (rect.left, rect.top),
+                               (rect.right, rect.top), 1)
+                pygame.draw.line(self.screen, edge_color, 
+                               (rect.left, rect.bottom - 1),
+                               (rect.right, rect.bottom - 1), 1)
+            else:
+                pygame.draw.line(self.screen, edge_color, 
+                               (rect.left, rect.top),
+                               (rect.left, rect.bottom), 1)
+                pygame.draw.line(self.screen, edge_color, 
+                               (rect.right - 1, rect.top),
+                               (rect.right - 1, rect.bottom), 1)
+            
+            pygame.draw.circle(self.screen, (100, 180, 255), (e1x, e1y), emitter_size // 2 + 2)
+            pygame.draw.circle(self.screen, (100, 180, 255), (e2x, e2y), emitter_size // 2 + 2)
+
+    def draw_ability_ui(self):
+        if self.current_ability == 0:
+            return
+        
+        y = SCREEN_HEIGHT - 50
+        x = SCREEN_WIDTH // 2 - 60
+        
+        ability_data = {
+            1: ("DASH", (150, 100, 50)),
+            2: ("LASER", (100, 150, 255)),
+            3: ("SHIELD", (100, 200, 100))
+        }
+        
+        name, color = ability_data[self.current_ability]
+        
+        pygame.draw.rect(self.screen, color, (x, y, 80, 30))
+        pygame.draw.rect(self.screen, WHITE, (x, y, 80, 30), 2)
+        
+        text = self.small_font.render(name, True, WHITE)
+        self.screen.blit(text, (x + 40 - text.get_width() // 2, y + 6))
+        
+        if self.current_ability == 2:
+            if self.laser_cooldown > 0:
+                cd_seconds = self.laser_cooldown // 60
+                status_text = self.small_font.render(f"CD: {cd_seconds}s ({len(self.player_lasers)})", True, RED)
+            else:
+                status_text = self.small_font.render(f"[E] Spawn ({len(self.player_lasers)})", True, GREEN)
+            self.screen.blit(status_text, (x + 90, y + 6))
+        elif self.ability_cooldown > 0:
+            cd_seconds = self.ability_cooldown // 60
+            cd_text = self.small_font.render(f"CD: {cd_seconds}s", True, RED)
+            self.screen.blit(cd_text, (x + 90, y + 6))
+        else:
+            ready_text = self.small_font.render("[E] Ready", True, GREEN)
+            self.screen.blit(ready_text, (x + 90, y + 6))
+        
+        if self.dash_active:
+            dash_text = self.font.render("DASHING!", True, (255, 200, 100))
+            self.screen.blit(dash_text, (SCREEN_WIDTH // 2 - dash_text.get_width() // 2, 120))
+        
+        if self.shield_active:
+            shield_seconds = self.shield_timer // 60
+            shield_text = self.font.render(f"SHIELD: {shield_seconds}s", True, (100, 255, 100))
+            self.screen.blit(shield_text, (SCREEN_WIDTH // 2 - shield_text.get_width() // 2, 120))
+
+    def draw_shield_effect(self):
+        if not self.shield_active:
+            return
+        
+        cx = self.player.x + self.player.width // 2
+        cy = self.player.y + self.player.height // 2
+        
+        pulse = abs((self.shield_timer % 30) - 15) / 15
+        radius = 20 + int(5 * pulse)
+        
+        shield_surface = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(shield_surface, (100, 200, 255, 80), (radius + 2, radius + 2), radius)
+        pygame.draw.circle(shield_surface, (150, 220, 255, 150), (radius + 2, radius + 2), radius, 2)
+        self.screen.blit(shield_surface, (cx - radius - 2, cy - radius - 2))
+
+    def get_enemy_coin_reward(self):
+        if self.current_location == 3:
+            return 3
+        elif self.current_location == 2:
+            return 2
+        else:
+            return 1
+
     def spawn_death_particles(self, enemy):
         center_x = enemy.x + enemy.width // 2
         center_y = enemy.y + enemy.height // 2
@@ -383,6 +855,65 @@ class Game:
         for _ in range(12):
             color = random.choice(colors)
             self.death_particles.append(DeathParticle(center_x, center_y, color))
+
+    def return_to_village(self):
+        self.current_level = 0
+        self.is_village = True
+        self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
+        spawn = self.dungeon.spawn_point
+        self.player.x = spawn[0] * TILE_SIZE + 4
+        self.player.y = spawn[1] * TILE_SIZE + 4
+        self.player.reset_velocity()
+        self.spawn_enemies()
+        self.projectiles = []
+        self.boss_projectiles = []
+        self.enemy_projectiles = []
+        self.death_particles = []
+        self.health_kits = []
+        self.health_kit_timer = 0
+        self.damage_cooldown = 0
+        self.shoot_cooldown = 0
+        self.enemy_spawn_timer = 0
+        self.player_lasers = []
+        self.laser_cooldown = 0
+        self.laser_immune_enemies = {}
+        self.play_music(BACKGROUND_MUSIC)
+
+    def go_to_level(self, level_index):
+        self.current_level = level_index
+        self.is_village = False
+        self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
+        spawn = self.dungeon.spawn_point
+        self.player.x = spawn[0] * TILE_SIZE + 4
+        self.player.y = spawn[1] * TILE_SIZE + 4
+        self.player.reset_velocity()
+        self.spawn_enemies()
+        self.projectiles = []
+        self.boss_projectiles = []
+        self.enemy_projectiles = []
+        self.death_particles = []
+        self.health_kits = []
+        self.health_kit_timer = 0
+        self.damage_cooldown = 0
+        self.shoot_cooldown = 0
+        self.enemy_spawn_timer = 0
+        self.player_lasers = []
+        self.laser_cooldown = 0
+        self.laser_immune_enemies = {}
+
+        level_data = self.levels[self.current_level]
+        location = level_data.get('location', 1)
+
+        if level_data.get('is_shadow_boss', False):
+            self.play_music(FINAL_BOSS_MUSIC)
+        elif level_data.get('is_boss_level', False):
+            self.play_music(BOSS_MUSIC)
+        elif location == 3:
+            self.play_music(CASTLE_MUSIC)
+        elif location == 2:
+            self.play_music(ICE_CAVE_MUSIC)
+        else:
+            self.play_music(BACKGROUND_MUSIC)
 
     def next_level(self):
         prev_level_data = self.levels[self.current_level]
@@ -411,11 +942,14 @@ class Game:
         self.damage_cooldown = 0
         self.shoot_cooldown = 0
         self.enemy_spawn_timer = 0
+        self.player_lasers = []
+        self.laser_cooldown = 0
+        self.laser_immune_enemies = {}
         
         level_data = self.levels[self.current_level]
         location = level_data.get('location', 1)
         
-        if level_data.get('is_final_boss', False):
+        if level_data.get('is_shadow_boss', False):
             self.play_music(FINAL_BOSS_MUSIC)
         elif level_data.get('is_boss_level', False):
             self.play_music(BOSS_MUSIC)
@@ -467,6 +1001,9 @@ class Game:
             SHOOT_SOUND.play()
 
     def update(self):
+        if self.in_ending_cutscene:
+            return
+            
         if self.game_won or self.game_over:
             if self.current_music:
                 self.current_music.stop()
@@ -474,6 +1011,14 @@ class Game:
             return
         
         self.dungeon.update()
+        
+        if self.dash_active:
+            self.player.speed = PLAYER_SPEED * 2.5
+            self.player.can_pass_through_enemies = True
+        else:
+            self.player.speed = PLAYER_SPEED
+            self.player.can_pass_through_enemies = False
+        
         self.player.update()
         
         if self.shoot_cooldown > 0:
@@ -489,6 +1034,8 @@ class Game:
         if self.health_kit_timer >= self.health_kit_interval:
             self.health_kit_timer = 0
             self.spawn_health_kit()
+        
+        self.update_abilities()
         
         for kit in self.health_kits:
             if kit.collides_with_player(self.player):
@@ -512,12 +1059,14 @@ class Game:
                             if enemy.take_damage(2):
                                 self.spawn_death_particles(enemy)
                                 self.enemies.remove(enemy)
+                                self.coins += self.get_enemy_coin_reward()
                                 KILL_SOUND.play()
                             else:
                                 DAMAGE_SOUND.play()
                         else:
                             self.spawn_death_particles(enemy)
                             self.enemies.remove(enemy)
+                            self.coins += self.get_enemy_coin_reward()
                             KILL_SOUND.play()
             else:
                 for enemy in self.enemies[:]:
@@ -529,12 +1078,14 @@ class Game:
                             if enemy.take_damage(1):
                                 self.spawn_death_particles(enemy)
                                 self.enemies.remove(enemy)
+                                self.coins += self.get_enemy_coin_reward()
                                 KILL_SOUND.play()
                             else:
                                 DAMAGE_SOUND.play()
                         else:
                             self.spawn_death_particles(enemy)
                             self.enemies.remove(enemy)
+                            self.coins += self.get_enemy_coin_reward()
                             KILL_SOUND.play()
                         
                         if not isinstance(projectile, IceProjectile):
@@ -552,18 +1103,42 @@ class Game:
                             damage = 2
                             if self.boss.take_damage(damage):
                                 self.boss = None
-                                self.ice_bullet_unlocked = True
+                                self.coins += 10
                                 VICTORY_SOUND.play()
-                                self.next_level()
+                                level_data = self.levels[self.current_level]
+                                if level_data.get('is_dungeon_boss', False):
+                                    self.dungeon_completed = True
+                                    self.ice_cave_unlocked = True
+                                    self.ice_bullet_unlocked = True
+                                    self.return_to_village()
+                                elif level_data.get('is_ice_boss', False):
+                                    self.ice_cave_completed = True
+                                    self.castle_unlocked = True
+                                    self.explosive_bullet_unlocked = True
+                                    self.return_to_village()
+                                else:
+                                    self.next_level()
                             break
                 elif projectile.get_rect().colliderect(self.boss.get_rect()):
                     if not isinstance(projectile, IceProjectile):
                         projectile.active = False
                     if self.boss.take_damage(1):
                         self.boss = None
-                        self.ice_bullet_unlocked = True
+                        self.coins += 10
                         VICTORY_SOUND.play()
-                        self.next_level()
+                        level_data = self.levels[self.current_level]
+                        if level_data.get('is_dungeon_boss', False):
+                            self.dungeon_completed = True
+                            self.ice_cave_unlocked = True
+                            self.ice_bullet_unlocked = True
+                            self.return_to_village()
+                        elif level_data.get('is_ice_boss', False):
+                            self.ice_cave_completed = True
+                            self.castle_unlocked = True
+                            self.explosive_bullet_unlocked = True
+                            self.return_to_village()
+                        else:
+                            self.next_level()
                     break
         
         if self.final_boss:
@@ -578,18 +1153,26 @@ class Game:
                             damage = 2
                             if self.final_boss.take_damage(damage):
                                 self.final_boss = None
+                                self.coins += 10
+                                self.ice_cave_completed = True
+                                self.castle_unlocked = True
                                 self.explosive_bullet_unlocked = True
                                 VICTORY_SOUND.play()
-                                self.next_level()
+                                self.return_to_village()
+                                return
                             break
                 elif projectile.get_rect().colliderect(self.final_boss.get_rect()):
                     if not isinstance(projectile, IceProjectile):
                         projectile.active = False
                     if self.final_boss.take_damage(1):
                         self.final_boss = None
+                        self.coins += 10
+                        self.ice_cave_completed = True
+                        self.castle_unlocked = True
                         self.explosive_bullet_unlocked = True
                         VICTORY_SOUND.play()
-                        self.next_level()
+                        self.return_to_village()
+                        return
                     break
 
         if self.shadow_boss:
@@ -604,20 +1187,18 @@ class Game:
                             damage = 2
                             if self.shadow_boss.take_damage(damage):
                                 self.shadow_boss = None
-                                self.game_won = True
+                                self.coins += 10
                                 VICTORY_SOUND.play()
-                                if self.current_music:
-                                    self.current_music.stop()
+                                self.start_ending_cutscene()
                             break
                 elif projectile.get_rect().colliderect(self.shadow_boss.get_rect()):
                     if not isinstance(projectile, IceProjectile):
                         projectile.active = False
                     if self.shadow_boss.take_damage(1):
                         self.shadow_boss = None
-                        self.game_won = True
+                        self.coins += 10
                         VICTORY_SOUND.play()
-                        if self.current_music:
-                            self.current_music.stop()
+                        self.start_ending_cutscene()
                     break
 
         self.projectiles = [p for p in self.projectiles if p.active]
@@ -652,12 +1233,18 @@ class Game:
             if proj:
                 self.boss_projectiles.append(proj)
                 SHOOT_SOUND.play()
+            shadow_enemy = self.shadow_boss.try_spawn_shadow_enemy(self.dungeon)
+            if shadow_enemy:
+                self.enemies.append(shadow_enemy)
 
         for proj in self.boss_projectiles:
-            proj.update(self.dungeon)
-        
+            if hasattr(proj, 'tracking'):
+                proj.update(self.dungeon, self.player)
+            else:
+                proj.update(self.dungeon)
+
         self.boss_projectiles = [p for p in self.boss_projectiles if p.active]
-        
+
         for enemy in self.enemies:
             enemy.move_towards_player(self.player, self.dungeon)
             enemy.update_blink()
@@ -677,25 +1264,27 @@ class Game:
         else:
             for enemy in self.enemies:
                 if enemy.is_touching_player(self.player):
+                    if self.dash_active:
+                        continue
                     if self.player.take_damage():
                         self.game_over = True
                     DAMAGE_SOUND.play()
                     self.damage_cooldown = 60
                     break
-            
-            if self.boss and self.boss.is_touching_player(self.player):
+
+            if self.boss and self.boss.is_touching_player(self.player) and not self.dash_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
             
-            if self.final_boss and self.final_boss.is_touching_player(self.player):
+            if self.final_boss and self.final_boss.is_touching_player(self.player) and not self.dash_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
 
-            if self.shadow_boss and self.shadow_boss.is_touching_player(self.player):
+            if self.shadow_boss and self.shadow_boss.is_touching_player(self.player) and not self.dash_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
@@ -703,32 +1292,53 @@ class Game:
 
             for proj in self.boss_projectiles:
                 if proj.collides_with_player(self.player):
-                    proj.active = False
-                    if self.player.take_damage():
-                        self.game_over = True
-                    DAMAGE_SOUND.play()
-                    self.damage_cooldown = 60
+                    if self.dash_active:
+                        continue
+                    if self.shield_active:
+                        proj.dx = -proj.dx
+                        proj.dy = -proj.dy
+                        self.projectiles.append(proj)
+                        self.boss_projectiles.remove(proj)
+                    else:
+                        proj.active = False
+                        if self.player.take_damage():
+                            self.game_over = True
+                        DAMAGE_SOUND.play()
+                        self.damage_cooldown = 60
                     break
-            
+
             for proj in self.enemy_projectiles:
                 if proj.collides_with_player(self.player):
-                    proj.active = False
-                    if self.player.take_damage():
-                        self.game_over = True
-                    DAMAGE_SOUND.play()
-                    self.damage_cooldown = 60
+                    if self.dash_active:
+                        continue
+                    if self.shield_active:
+                        proj.dx = -proj.dx
+                        proj.dy = -proj.dy
+                        self.projectiles.append(proj)
+                        self.enemy_projectiles.remove(proj)
+                    else:
+                        proj.active = False
+                        if self.player.take_damage():
+                            self.game_over = True
+                        DAMAGE_SOUND.play()
+                        self.damage_cooldown = 60
                     break
             
-            if self.dungeon.check_laser_collision(self.player):
+            if self.dungeon.check_laser_collision(self.player) and not self.dash_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
         
-        if not self.is_boss_level and self.dungeon.check_exit(self.player):
+        if self.is_village:
+            self.check_village_doors()
+        elif not self.is_boss_level and self.dungeon.check_exit(self.player):
             self.next_level()
 
     def draw(self):
+        if self.in_ending_cutscene:
+            return
+            
         self.screen.fill(BLACK)
         
         if self.game_won:
@@ -752,7 +1362,19 @@ class Game:
                 self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 2 + 20))
         else:
             self.dungeon.draw(self.screen)
+            
+            if self.is_village:
+                self.draw_village_well()
+                self.draw_village_doors()
+                self.draw_shop()
+            
             self.player.draw(self.screen)
+            
+            if self.shield_active:
+                self.draw_shield_effect()
+            
+            if self.player_lasers:
+                self.draw_player_lasers()
             
             for enemy in self.enemies:
                 enemy.draw(self.screen)
@@ -781,21 +1403,24 @@ class Game:
             for kit in self.health_kits:
                 kit.draw(self.screen)
             
-            if self.is_shadow_boss_level:
-                level_text = self.font.render("THE DARK LORD!", True, (200, 30, 30))
-            elif self.is_final_boss_level:
-                level_text = self.font.render("GUARD!", True, FINAL_BOSS_COLOR)
+            if self.is_village:
+                location_text = self.font.render("Morzhaka Village", True, (180, 160, 100))
+            elif self.is_shadow_boss_level:
+                location_text = self.font.render("THE DARK LORD!", True, (200, 30, 30))
             elif self.is_boss_level:
-                level_text = self.font.render("BOSS FIGHT!", True, RED)
+                location_text = self.font.render("BOSS FIGHT!", True, RED)
             else:
                 location = self.levels[self.current_level].get('location', 1)
                 if location == 3:
-                    level_text = self.font.render(f"Shadow Byako Castle - Level: {self.current_level + 1}/{len(self.levels)}", True, (150, 150, 160))
+                    location_text = self.font.render("Shadow Byako Castle", True, (150, 150, 160))
                 elif location == 2:
-                    level_text = self.font.render(f"Ice Caves - Level: {self.current_level + 1}/{len(self.levels)}", True, ICE_FLOOR_COLOR)
+                    location_text = self.font.render("Ice Caves", True, ICE_FLOOR_COLOR)
                 else:
-                    level_text = self.font.render(f"Level: {self.current_level + 1}/{len(self.levels)}", True, WHITE)
-            self.screen.blit(level_text, (10, 10))
+                    location_text = self.font.render("Dungeon", True, WHITE)
+            self.screen.blit(location_text, (10, 10))
+            
+            coin_text = self.font.render(f"Coins: {self.coins}", True, YELLOW)
+            self.screen.blit(coin_text, (10, 40))
             
             health_label = self.small_font.render("HP:", True, WHITE)
             self.screen.blit(health_label, (SCREEN_WIDTH - 185, 10))
@@ -814,23 +1439,355 @@ class Game:
                 bullet3_color = (150, 150, 155) if self.selected_bullet == 3 else GRAY
                 bullet3_text = self.small_font.render("[3] Boom", True, bullet3_color)
                 self.screen.blit(bullet3_text, (SCREEN_WIDTH - 185, 75))
+            
+            self.draw_ability_ui()
+            
+            if self.in_shop:
+                self.draw_shop_menu()
 
-            if self.is_shadow_boss_level:
-                hint_text = self.small_font.render("Defeat the Dark Lord and save Master Morzhaka!", True, (200, 30, 30))
-            elif self.is_final_boss_level:
-                hint_text = self.small_font.render("Defeat the Guard to reach the Castle!", True, FINAL_BOSS_COLOR)
+            if self.is_village:
+                hint_text = self.small_font.render("Walk to a door to enter!", True, (180, 160, 100))
+            elif self.is_shadow_boss_level:
+                hint_text = self.small_font.render("Defeat the Dark Lord!", True, (200, 30, 30))
             elif self.is_boss_level:
-                hint_text = self.small_font.render("Defeat this guardian to continue!", True, RED)
+                hint_text = self.small_font.render("Defeat the guardian!", True, RED)
             elif self.current_location == 3:
-                hint_text = self.small_font.render("The Dark Lord awaits in his throne room!", True, (150, 150, 160))
+                hint_text = self.small_font.render("Find the exit!", True, (150, 150, 160))
             else:
-                hint_text = self.small_font.render("Find the exit! Your Master needs you!", True, YELLOW)
-            self.screen.blit(hint_text, (10, 45))
+                hint_text = self.small_font.render("Find the exit!", True, YELLOW)
+            self.screen.blit(hint_text, (10, 70))
             
             controls_text = self.small_font.render("WASD/Arrows: move | SPACE: shoot | 1/2/3: switch bullets", True, WHITE)
             self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
         
         pygame.display.flip()
+
+    def draw_shop(self):
+        cx = 12 * TILE_SIZE + TILE_SIZE // 2
+        cy = 10 * TILE_SIZE
+        
+        pygame.draw.rect(self.screen, (100, 70, 50), (cx - 40, cy - 20, 80, 50))
+        pygame.draw.rect(self.screen, (80, 55, 40), (cx - 40, cy - 20, 80, 50), 3)
+        pygame.draw.rect(self.screen, (120, 90, 60), (cx - 35, cy - 15, 70, 8))
+        
+        sign_text = self.small_font.render("SHOP", True, YELLOW)
+        self.screen.blit(sign_text, (cx - sign_text.get_width() // 2, cy - 5))
+        
+        player_tile_x = int(self.player.x // TILE_SIZE)
+        player_tile_y = int(self.player.y // TILE_SIZE)
+        if 10 <= player_tile_x <= 14 and 9 <= player_tile_y <= 11:
+            prompt = self.small_font.render("Press ENTER to shop", True, WHITE)
+            self.screen.blit(prompt, (cx - prompt.get_width() // 2, cy + 35))
+
+    def draw_shop_menu(self):
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        self.screen.blit(overlay, (0, 0))
+        
+        title = self.title_font.render("SHOP", True, YELLOW)
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 40))
+        
+        coins_text = self.font.render(f"Your Coins: {self.coins}", True, YELLOW)
+        self.screen.blit(coins_text, (SCREEN_WIDTH // 2 - coins_text.get_width() // 2, 100))
+        
+        owned_abilities = []
+        if self.has_dash:
+            owned_abilities.append("DASH")
+        if self.has_laser:
+            owned_abilities.append("LASER")
+        if self.has_shield:
+            owned_abilities.append("SHIELD")
+        
+        if owned_abilities:
+            owned_text = self.small_font.render(f"Owned: {', '.join(owned_abilities)}", True, (100, 200, 100))
+            self.screen.blit(owned_text, (SCREEN_WIDTH // 2 - owned_text.get_width() // 2, 130))
+        
+        items = [
+            {"name": "DASH", "cost": 50, "owned": self.has_dash,
+             "desc": "Pass through enemies (E key, 10s cooldown)"},
+            {"name": "LASER", "cost": 75, "owned": self.has_laser,
+             "desc": "Spawn damaging laser (E key, stays forever)"},
+            {"name": "SHIELD", "cost": 100, "owned": self.has_shield,
+             "desc": "Deflect bullets 15s (E key, 30s cooldown)"},
+        ]
+        
+        y_start = 160
+        for i, item in enumerate(items):
+            y = y_start + i * 70
+            
+            if i == self.shop_selection:
+                pygame.draw.rect(self.screen, (60, 60, 80), (100, y - 5, SCREEN_WIDTH - 200, 60))
+                pygame.draw.rect(self.screen, YELLOW, (100, y - 5, SCREEN_WIDTH - 200, 60), 2)
+            
+            if item["owned"]:
+                name_color = (100, 200, 100)
+                status = "[OWNED]"
+            elif self.coins >= item["cost"]:
+                name_color = WHITE
+                status = f"[{item['cost']} coins]"
+            else:
+                name_color = (150, 150, 150)
+                status = f"[{item['cost']} coins - Not enough]"
+            
+            name_text = self.font.render(item["name"], True, name_color)
+            self.screen.blit(name_text, (120, y))
+            
+            status_text = self.small_font.render(status, True, name_color)
+            self.screen.blit(status_text, (SCREEN_WIDTH - 120 - status_text.get_width(), y + 5))
+            
+            desc_text = self.small_font.render(item["desc"], True, (180, 180, 180))
+            self.screen.blit(desc_text, (120, y + 30))
+        
+        exit_y = y_start + 3 * 70
+        exit_color = YELLOW if self.shop_selection == 3 else WHITE
+        if self.shop_selection == 3:
+            pygame.draw.rect(self.screen, (60, 60, 80), (100, exit_y - 5, SCREEN_WIDTH - 200, 40))
+            pygame.draw.rect(self.screen, YELLOW, (100, exit_y - 5, SCREEN_WIDTH - 200, 40), 2)
+        exit_text = self.font.render("EXIT SHOP", True, exit_color)
+        self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, exit_y))
+        
+        controls = self.small_font.render("UP/DOWN: Select | ENTER: Buy | ESC: Exit", True, GRAY)
+        self.screen.blit(controls, (SCREEN_WIDTH // 2 - controls.get_width() // 2, SCREEN_HEIGHT - 40))
+
+    def handle_shop_purchase(self):
+        if self.shop_selection == 0 and not self.has_dash and self.coins >= 50:
+            self.coins -= 50
+            self.has_dash = True
+            if self.current_ability == 0:
+                self.current_ability = 1
+        elif self.shop_selection == 1 and not self.has_laser and self.coins >= 75:
+            self.coins -= 75
+            self.has_laser = True
+            if self.current_ability == 0:
+                self.current_ability = 2
+        elif self.shop_selection == 2 and not self.has_shield and self.coins >= 100:
+            self.coins -= 100
+            self.has_shield = True
+            if self.current_ability == 0:
+                self.current_ability = 3
+        elif self.shop_selection == 3:
+            self.in_shop = False
+
+    def draw_inventory_menu(self):
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))
+        self.screen.blit(overlay, (0, 0))
+        
+        title = self.title_font.render("INVENTORY", True, YELLOW)
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 40))
+        
+        owned_items = []
+        if self.has_dash:
+            owned_items.append({"name": "DASH", "id": 1, "color": (150, 100, 50),
+                               "desc": "Pass through enemies (E key, 10s cooldown)"})
+        if self.has_laser:
+            owned_items.append({"name": "LASER", "id": 2, "color": (100, 150, 255),
+                               "desc": "Spawn damaging laser (E key, stays forever)"})
+        if self.has_shield:
+            owned_items.append({"name": "SHIELD", "id": 3, "color": (100, 200, 100),
+                               "desc": "Deflect bullets 15s (E key, 30s cooldown)"})
+        
+        if not owned_items:
+            no_ability = self.font.render("No abilities owned", True, (150, 150, 150))
+            self.screen.blit(no_ability, (SCREEN_WIDTH // 2 - no_ability.get_width() // 2, 180))
+            hint = self.small_font.render("Visit the shop in the village to buy abilities!", True, (180, 180, 180))
+            self.screen.blit(hint, (SCREEN_WIDTH // 2 - hint.get_width() // 2, 220))
+            
+            exit_y = 280
+            exit_color = YELLOW
+            pygame.draw.rect(self.screen, (60, 60, 80), (120, exit_y - 5, SCREEN_WIDTH - 240, 40))
+            pygame.draw.rect(self.screen, YELLOW, (120, exit_y - 5, SCREEN_WIDTH - 240, 40), 2)
+            exit_text = self.font.render("BACK", True, exit_color)
+            self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, exit_y))
+        else:
+            current_text = self.font.render("Select ability to equip:", True, WHITE)
+            self.screen.blit(current_text, (SCREEN_WIDTH // 2 - current_text.get_width() // 2, 100))
+            
+            max_selection = len(owned_items)
+            if self.inventory_selection > max_selection:
+                self.inventory_selection = max_selection
+            
+            y_start = 150
+            for i, item in enumerate(owned_items):
+                y = y_start + i * 60
+                
+                if i == self.inventory_selection:
+                    pygame.draw.rect(self.screen, (60, 60, 80), (100, y - 5, SCREEN_WIDTH - 200, 55))
+                    pygame.draw.rect(self.screen, YELLOW, (100, y - 5, SCREEN_WIDTH - 200, 55), 2)
+                
+                if self.current_ability == item["id"]:
+                    name_color = (100, 255, 100)
+                    status = "[EQUIPPED]"
+                else:
+                    name_color = item["color"]
+                    status = "[SELECT]"
+                
+                name_text = self.font.render(item["name"], True, name_color)
+                self.screen.blit(name_text, (120, y))
+                
+                status_text = self.small_font.render(status, True, name_color)
+                self.screen.blit(status_text, (SCREEN_WIDTH - 120 - status_text.get_width(), y + 5))
+                
+                desc_text = self.small_font.render(item["desc"], True, (180, 180, 180))
+                self.screen.blit(desc_text, (120, y + 28))
+            
+            exit_y = y_start + len(owned_items) * 60
+            exit_color = YELLOW if self.inventory_selection == len(owned_items) else WHITE
+            if self.inventory_selection == len(owned_items):
+                pygame.draw.rect(self.screen, (60, 60, 80), (100, exit_y - 5, SCREEN_WIDTH - 200, 40))
+                pygame.draw.rect(self.screen, YELLOW, (100, exit_y - 5, SCREEN_WIDTH - 200, 40), 2)
+            exit_text = self.font.render("BACK", True, exit_color)
+            self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, exit_y))
+        
+        controls = self.small_font.render("UP/DOWN: Select | ENTER: Equip | ESC: Back", True, GRAY)
+        self.screen.blit(controls, (SCREEN_WIDTH // 2 - controls.get_width() // 2, SCREEN_HEIGHT - 40))
+
+    def handle_inventory_swap(self):
+        owned_items = []
+        if self.has_dash:
+            owned_items.append(1)
+        if self.has_laser:
+            owned_items.append(2)
+        if self.has_shield:
+            owned_items.append(3)
+        
+        if not owned_items:
+            self.in_inventory = False
+            return
+        
+        if self.inventory_selection >= len(owned_items):
+            self.in_inventory = False
+            return
+        
+        new_ability = owned_items[self.inventory_selection]
+        if self.current_ability != new_ability:
+            self.current_ability = new_ability
+            self.player_lasers = []
+            self.laser_cooldown = 0
+            self.dash_active = False
+            self.shield_active = False
+            self.ability_cooldown = 0
+        
+        self.in_inventory = False
+
+    def draw_village_well(self):
+        cx = 12 * TILE_SIZE + TILE_SIZE // 2
+        cy = 10 * TILE_SIZE + TILE_SIZE // 2
+        
+        stone_color = (100, 95, 90)
+        stone_dark = (70, 65, 60)
+        water_color = (60, 100, 140)
+        wood_color = (90, 60, 35)
+        
+        pygame.draw.circle(self.screen, stone_color, (cx, cy), 18)
+        pygame.draw.circle(self.screen, stone_dark, (cx, cy), 18, 3)
+        pygame.draw.circle(self.screen, water_color, (cx, cy), 12)
+        
+        pygame.draw.rect(self.screen, wood_color, (cx - 20, cy - 25, 4, 20))
+        pygame.draw.rect(self.screen, wood_color, (cx + 16, cy - 25, 4, 20))
+        pygame.draw.rect(self.screen, wood_color, (cx - 22, cy - 28, 44, 4))
+        
+        rope_color = (140, 120, 80)
+        pygame.draw.line(self.screen, rope_color, (cx, cy - 26), (cx, cy - 10), 2)
+
+    def draw_door(self, x, y, width, height, door_color, frame_color, locked=False, completed=False):
+        pygame.draw.rect(self.screen, frame_color, (x - 3, y - 3, width + 6, height + 6))
+        pygame.draw.rect(self.screen, door_color, (x, y, width, height))
+        
+        darker_color = tuple(max(0, c - 40) for c in door_color)
+        lighter_color = tuple(min(255, c + 30) for c in door_color)
+        
+        pygame.draw.line(self.screen, lighter_color, (x + 2, y + 2), (x + width - 3, y + 2), 2)
+        pygame.draw.line(self.screen, lighter_color, (x + 2, y + 2), (x + 2, y + height - 3), 2)
+        pygame.draw.line(self.screen, darker_color, (x + width - 3, y + 2), (x + width - 3, y + height - 3), 2)
+        pygame.draw.line(self.screen, darker_color, (x + 2, y + height - 3), (x + width - 3, y + height - 3), 2)
+        
+        if width > height:
+            for i in range(3):
+                px = x + 8 + i * (width - 16) // 2
+                pygame.draw.rect(self.screen, darker_color, (px, y + 6, (width - 20) // 3, height - 12))
+        else:
+            for i in range(3):
+                py = y + 8 + i * (height - 16) // 2
+                pygame.draw.rect(self.screen, darker_color, (x + 6, py, width - 12, (height - 20) // 3))
+        
+        knob_color = (220, 200, 100) if not locked else (80, 80, 80)
+        if width > height:
+            knob_x = x + width // 2
+            knob_y = y + height - 8
+        else:
+            knob_x = x + width - 8
+            knob_y = y + height // 2
+        pygame.draw.circle(self.screen, knob_color, (knob_x, knob_y), 5)
+        pygame.draw.circle(self.screen, tuple(max(0, c - 40) for c in knob_color), (knob_x, knob_y), 5, 1)
+        
+        if locked:
+            lock_body = (50, 50, 55)
+            lock_shackle = (70, 70, 75)
+            cx, cy = x + width // 2, y + height // 2
+            pygame.draw.rect(self.screen, lock_body, (cx - 8, cy, 16, 12))
+            pygame.draw.rect(self.screen, lock_shackle, (cx - 5, cy - 8, 10, 10), 2)
+        
+        if completed:
+            check_color = (80, 220, 80)
+            cx, cy = x + width // 2, y + height // 2
+            pygame.draw.line(self.screen, check_color, (cx - 10, cy), (cx - 3, cy + 8), 4)
+            pygame.draw.line(self.screen, check_color, (cx - 3, cy + 8), (cx + 10, cy - 8), 4)
+
+    def draw_village_doors(self):
+        level_data = self.levels[self.current_level]
+        doors = level_data.get('doors', {})
+        
+        if 'castle' in doors:
+            door_pos = doors['castle']
+            door_x = (door_pos[0] - 2) * TILE_SIZE
+            door_y = door_pos[1] * TILE_SIZE - 8
+            
+            if self.castle_unlocked:
+                door_color = (80, 60, 100)
+                frame_color = (50, 40, 70)
+            else:
+                door_color = (60, 60, 60)
+                frame_color = (40, 40, 40)
+            
+            self.draw_door(door_x, door_y, TILE_SIZE * 5, TILE_SIZE + 16, door_color, frame_color,
+                          locked=not self.castle_unlocked, completed=False)
+        
+        if 'ice_cave' in doors:
+            door_pos = doors['ice_cave']
+            door_x = door_pos[0] * TILE_SIZE - 8
+            door_y = (door_pos[1] - 1) * TILE_SIZE
+            
+            if self.ice_cave_completed:
+                door_color = (80, 120, 80)
+                frame_color = (50, 80, 50)
+            elif self.ice_cave_unlocked:
+                door_color = (80, 140, 180)
+                frame_color = (50, 100, 140)
+            else:
+                door_color = (60, 60, 60)
+                frame_color = (40, 40, 40)
+            
+            self.draw_door(door_x, door_y, TILE_SIZE + 16, TILE_SIZE * 3, door_color, frame_color,
+                          locked=not self.ice_cave_unlocked, completed=self.ice_cave_completed)
+        
+        if 'dungeon' in doors:
+            door_pos = doors['dungeon']
+            door_x = door_pos[0] * TILE_SIZE - TILE_SIZE - 8
+            door_y = (door_pos[1] - 1) * TILE_SIZE
+            
+            if self.dungeon_completed:
+                door_color = (80, 120, 80)
+                frame_color = (50, 80, 50)
+            elif self.dungeon_unlocked:
+                door_color = (120, 80, 50)
+                frame_color = (80, 50, 30)
+            else:
+                door_color = (60, 60, 60)
+                frame_color = (40, 40, 40)
+            
+            self.draw_door(door_x, door_y, TILE_SIZE + 16, TILE_SIZE * 3, door_color, frame_color, 
+                          locked=not self.dungeon_unlocked, completed=self.dungeon_completed)
 
     def draw_menu(self):
         self.screen.fill((20, 20, 30))
@@ -912,28 +1869,34 @@ class Game:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
-        
+
         title_text = self.title_font.render("PAUSED", True, YELLOW)
         title_shadow = self.title_font.render("PAUSED", True, (80, 60, 0))
-        self.screen.blit(title_shadow, (SCREEN_WIDTH // 2 - title_text.get_width() // 2 + 3, SCREEN_HEIGHT // 2 - 97))
-        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, SCREEN_HEIGHT // 2 - 100))
-        
+        self.screen.blit(title_shadow, (SCREEN_WIDTH // 2 - title_text.get_width() // 2 + 3, SCREEN_HEIGHT // 2 - 157))
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, SCREEN_HEIGHT // 2 - 160))
+
         resume_color = YELLOW if self.pause_selection == 0 else WHITE
-        exit_color = YELLOW if self.pause_selection == 1 else WHITE
-        
+        inventory_color = YELLOW if self.pause_selection == 1 else WHITE
+        settings_color = YELLOW if self.pause_selection == 2 else WHITE
+        exit_color = YELLOW if self.pause_selection == 3 else WHITE
+
         resume_text = self.menu_font.render("RESUME", True, resume_color)
+        inventory_text = self.menu_font.render("INVENTORY [I]", True, inventory_color)
+        settings_text = self.menu_font.render("SETTINGS", True, settings_color)
         exit_text = self.menu_font.render("EXIT", True, exit_color)
-        
-        menu_items = [resume_text, exit_text]
-        menu_y_positions = [SCREEN_HEIGHT // 2, SCREEN_HEIGHT // 2 + 60]
-        
+
+        menu_items = [resume_text, inventory_text, settings_text, exit_text]
+        menu_y_positions = [SCREEN_HEIGHT // 2 - 60, SCREEN_HEIGHT // 2, SCREEN_HEIGHT // 2 + 60, SCREEN_HEIGHT // 2 + 120]
+
         arrow_text = self.menu_font.render(">", True, YELLOW)
         self.screen.blit(arrow_text, (SCREEN_WIDTH // 2 - menu_items[self.pause_selection].get_width() // 2 - 40, menu_y_positions[self.pause_selection]))
-        
-        self.screen.blit(resume_text, (SCREEN_WIDTH // 2 - resume_text.get_width() // 2, SCREEN_HEIGHT // 2))
-        self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, SCREEN_HEIGHT // 2 + 60))
-        
-        controls_text = self.small_font.render("UP/DOWN: select | ENTER: confirm | ESC: resume", True, GRAY)
+
+        self.screen.blit(resume_text, (SCREEN_WIDTH // 2 - resume_text.get_width() // 2, menu_y_positions[0]))
+        self.screen.blit(inventory_text, (SCREEN_WIDTH // 2 - inventory_text.get_width() // 2, menu_y_positions[1]))
+        self.screen.blit(settings_text, (SCREEN_WIDTH // 2 - settings_text.get_width() // 2, menu_y_positions[2]))
+        self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, menu_y_positions[3]))
+
+        controls_text = self.small_font.render("UP/DOWN: select | ENTER: confirm | I: inventory | ESC: resume", True, GRAY)
         self.screen.blit(controls_text, (SCREEN_WIDTH // 2 - controls_text.get_width() // 2, SCREEN_HEIGHT - 50))
 
     def draw_paused(self):
@@ -968,7 +1931,12 @@ class Game:
         for kit in self.health_kits:
             kit.draw(self.screen)
         
-        self.draw_pause_menu()
+        if self.in_inventory:
+            self.draw_inventory_menu()
+        elif self.in_settings:
+            self.draw_settings()
+        else:
+            self.draw_pause_menu()
         pygame.display.flip()
 
     def toggle_fullscreen(self):
@@ -1036,16 +2004,51 @@ class Game:
                         elif event.key == pygame.K_ESCAPE:
                             self.in_cutscene = False
                             self.start_game()
+                    elif self.in_ending_cutscene:
+                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                            self.advance_ending_cutscene()
+                        elif event.key == pygame.K_ESCAPE:
+                            self.in_ending_cutscene = False
+                            self.game_won = True
+                    elif self.in_shop:
+                        if event.key == pygame.K_ESCAPE:
+                            self.in_shop = False
+                        elif event.key == pygame.K_UP or event.key == pygame.K_w:
+                            self.shop_selection = (self.shop_selection - 1) % 4
+                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                            self.shop_selection = (self.shop_selection + 1) % 4
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                            self.handle_shop_purchase()
+                    elif self.in_inventory:
+                        owned_count = sum([self.has_dash, self.has_laser, self.has_shield])
+                        max_options = owned_count + 1 if owned_count > 0 else 1
+                        if event.key == pygame.K_ESCAPE:
+                            self.in_inventory = False
+                        elif event.key == pygame.K_UP or event.key == pygame.K_w:
+                            self.inventory_selection = (self.inventory_selection - 1) % max_options
+                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                            self.inventory_selection = (self.inventory_selection + 1) % max_options
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                            self.handle_inventory_swap()
                     elif self.paused:
                         if event.key == pygame.K_ESCAPE:
                             self.paused = False
                         elif event.key == pygame.K_UP or event.key == pygame.K_w:
-                            self.pause_selection = (self.pause_selection - 1) % 2
+                            self.pause_selection = (self.pause_selection - 1) % 4
                         elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                            self.pause_selection = (self.pause_selection + 1) % 2
+                            self.pause_selection = (self.pause_selection + 1) % 4
+                        elif event.key == pygame.K_i:
+                            self.in_inventory = True
+                            self.inventory_selection = 0
                         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                             if self.pause_selection == 0:
                                 self.paused = False
+                            elif self.pause_selection == 1:
+                                self.in_inventory = True
+                                self.inventory_selection = 0
+                            elif self.pause_selection == 2:
+                                self.in_settings = True
+                                self.settings_selection = 0
                             else:
                                 self.running = False
                     else:
@@ -1055,6 +2058,16 @@ class Game:
                                 self.pause_selection = 0
                         elif event.key == pygame.K_p and not self.game_won and not self.game_over:
                             self.next_level()
+                        elif event.key == pygame.K_e and not self.game_won and not self.game_over:
+                            self.activate_ability()
+                        elif event.key == pygame.K_RETURN and self.is_village and not self.game_won and not self.game_over:
+                            player_tile_x = int(self.player.x // TILE_SIZE)
+                            player_tile_y = int(self.player.y // TILE_SIZE)
+                            if 10 <= player_tile_x <= 14 and 9 <= player_tile_y <= 11:
+                                self.in_shop = True
+                                self.shop_selection = 0
+                        elif event.key == pygame.K_m:
+                            self.coins = 99999999999
                         elif event.key == pygame.K_r and (self.game_won or self.game_over):
                             if self.game_won:
                                 self.current_level = 0
@@ -1062,6 +2075,22 @@ class Game:
                                 self.ice_bullet_unlocked = False
                                 self.explosive_bullet_unlocked = False
                                 self.selected_bullet = 1
+                                self.dungeon_unlocked = True
+                                self.ice_cave_unlocked = False
+                                self.castle_unlocked = False
+                                self.dungeon_completed = False
+                                self.ice_cave_completed = False
+                                self.is_village = True
+                                self.coins = 0
+                                self.has_dash = False
+                                self.has_laser = False
+                                self.has_shield = False
+                                self.current_ability = 0
+                                self.ability_cooldown = 0
+                                self.dash_active = False
+                                self.shield_active = False
+                                self.player_lasers = []
+                                self.laser_cooldown = 0
                             else:
                                 self.current_level = self.checkpoint_level
                             self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
@@ -1073,6 +2102,7 @@ class Game:
                             self.player.reset_velocity()
                             self.spawn_enemies()
                             self.projectiles = []
+                            self.boss_projectiles = []
                             self.enemy_projectiles = []
                             self.death_particles = []
                             self.health_kits = []
@@ -1084,7 +2114,15 @@ class Game:
                             self.game_over = False
                             level_data = self.levels[self.current_level]
                             location = level_data.get('location', 1)
-                            if location == 2:
+                            if level_data.get('is_shadow_boss', False):
+                                self.play_music(FINAL_BOSS_MUSIC)
+                            elif level_data.get('is_boss_level', False):
+                                self.play_music(BOSS_MUSIC)
+                            elif level_data.get('is_village', False):
+                                self.play_music(BACKGROUND_MUSIC)
+                            elif location == 3:
+                                self.play_music(CASTLE_MUSIC)
+                            elif location == 2:
                                 self.play_music(ICE_CAVE_MUSIC)
                             else:
                                 self.play_music(BACKGROUND_MUSIC)
@@ -1098,6 +2136,10 @@ class Game:
             elif self.in_cutscene:
                 self.update_cutscene()
                 self.draw_cutscene()
+                pygame.display.flip()
+            elif self.in_ending_cutscene:
+                self.update_ending_cutscene()
+                self.draw_ending_cutscene()
                 pygame.display.flip()
             elif self.paused:
                 self.draw_paused()

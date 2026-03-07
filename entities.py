@@ -31,8 +31,11 @@ class Player:
         self.ice_friction = 0.92
         self.ice_acceleration = 0.4
         self.ice_max_speed = PLAYER_SPEED * 1.2
+        self.can_pass_through_enemies = False
 
     def would_collide_with_enemies(self, new_x, new_y, enemies, boss=None, final_boss=None):
+        if self.can_pass_through_enemies:
+            return False
         player_rect = pygame.Rect(new_x, new_y, self.width, self.height)
         for enemy in enemies:
             if player_rect.colliderect(enemy.get_rect()):

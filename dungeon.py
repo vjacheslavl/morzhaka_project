@@ -16,7 +16,18 @@ class Dungeon:
         self.animation_timer = 0
         self.P = PIXEL_SIZE
         
-        if self.location == 3:
+        if self.location == 0:
+            self.colors = {
+                'wall_main': (60, 120, 50),
+                'wall_light': (80, 150, 65),
+                'wall_dark': (40, 90, 35),
+                'wall_outline': (30, 70, 25),
+                'floor_main': (110, 90, 60),
+                'floor_light': (130, 110, 75),
+                'floor_dark': (85, 70, 45),
+                'floor_accent': (100, 80, 55),
+            }
+        elif self.location == 3:
             self.colors = {
                 'wall_main': (45, 45, 50),
                 'wall_light': (70, 70, 80),
@@ -116,17 +127,26 @@ class Dungeon:
         
         pygame.draw.rect(surface, c['floor_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
         
-        if pattern == 1:
-            self.px_surf(surface, tx + P * 3, ty + P * 5, c['floor_dark'])
-            self.px_surf(surface, tx + P * 10, ty + P * 8, c['floor_dark'])
-        elif pattern == 2:
-            self.px_surf(surface, tx + P * 7, ty + P * 4, c['floor_light'])
-            self.px_surf(surface, tx + P * 12, ty + P * 11, c['floor_light'])
-        elif pattern == 3:
-            self.px_surf(surface, tx + P * 5, ty + P * 9, c['floor_dark'])
-        elif pattern == 4:
-            self.px_surf(surface, tx + P * 2, ty + P * 12, c['floor_light'])
-            self.px_surf(surface, tx + P * 9, ty + P * 3, c['floor_dark'])
+        if self.location == 0:
+            grass_colors = [(90, 140, 70), (80, 130, 60), (100, 150, 80)]
+            if pattern in [1, 2]:
+                self.px_surf(surface, tx + P * 3, ty + P * 5, grass_colors[pattern % 3])
+                self.px_surf(surface, tx + P * 10, ty + P * 8, grass_colors[(pattern + 1) % 3])
+            if pattern in [3, 4]:
+                self.px_surf(surface, tx + P * 7, ty + P * 3, grass_colors[0])
+                self.px_surf(surface, tx + P * 12, ty + P * 10, grass_colors[1])
+        else:
+            if pattern == 1:
+                self.px_surf(surface, tx + P * 3, ty + P * 5, c['floor_dark'])
+                self.px_surf(surface, tx + P * 10, ty + P * 8, c['floor_dark'])
+            elif pattern == 2:
+                self.px_surf(surface, tx + P * 7, ty + P * 4, c['floor_light'])
+                self.px_surf(surface, tx + P * 12, ty + P * 11, c['floor_light'])
+            elif pattern == 3:
+                self.px_surf(surface, tx + P * 5, ty + P * 9, c['floor_dark'])
+            elif pattern == 4:
+                self.px_surf(surface, tx + P * 2, ty + P * 12, c['floor_light'])
+                self.px_surf(surface, tx + P * 9, ty + P * 3, c['floor_dark'])
 
     def render_wall_tile(self, surface, x, y):
         tx, ty = x * TILE_SIZE, y * TILE_SIZE
@@ -136,28 +156,47 @@ class Dungeon:
         
         pygame.draw.rect(surface, c['wall_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
         
-        for row in range(4):
-            brick_y = ty + row * 4 * P
-            offset = (8 * P) if row % 2 == 1 else 0
+        if self.location == 0:
+            leaf_positions = [
+                (2, 2), (5, 1), (9, 3), (12, 1), (14, 2),
+                (3, 6), (7, 5), (11, 7), (13, 5),
+                (1, 10), (4, 9), (8, 11), (10, 9), (14, 10),
+                (2, 13), (6, 12), (9, 14), (12, 13)
+            ]
+            for lx, ly in leaf_positions:
+                if (lx + ly + pattern) % 3 == 0:
+                    self.px_surf(surface, tx + P * lx, ty + P * ly, c['wall_light'])
+                elif (lx + ly + pattern) % 3 == 1:
+                    self.px_surf(surface, tx + P * lx, ty + P * ly, c['wall_dark'])
             
-            for i in range(16):
-                self.px_surf(surface, tx + i * P, brick_y, c['wall_dark'])
+            trunk_color = (80, 60, 40)
+            self.px_surf(surface, tx + P * 7, ty + P * 14, trunk_color)
+            self.px_surf(surface, tx + P * 8, ty + P * 14, trunk_color)
+            self.px_surf(surface, tx + P * 7, ty + P * 15, trunk_color)
+            self.px_surf(surface, tx + P * 8, ty + P * 15, trunk_color)
+        else:
+            for row in range(4):
+                brick_y = ty + row * 4 * P
+                offset = (8 * P) if row % 2 == 1 else 0
+                
+                for i in range(16):
+                    self.px_surf(surface, tx + i * P, brick_y, c['wall_dark'])
+                
+                for bx in range(-1, 3):
+                    line_x = tx + bx * 8 * P + offset
+                    if line_x >= tx and line_x < tx + TILE_SIZE:
+                        for by in range(4):
+                            if brick_y + by * P < ty + TILE_SIZE:
+                                self.px_surf(surface, line_x, brick_y + by * P, c['wall_dark'])
             
-            for bx in range(-1, 3):
-                line_x = tx + bx * 8 * P + offset
-                if line_x >= tx and line_x < tx + TILE_SIZE:
-                    for by in range(4):
-                        if brick_y + by * P < ty + TILE_SIZE:
-                            self.px_surf(surface, line_x, brick_y + by * P, c['wall_dark'])
-        
-        self.px_surf(surface, tx + P, ty + P, c['wall_light'])
-        self.px_surf(surface, tx + P * 2, ty + P, c['wall_light'])
-        self.px_surf(surface, tx + P, ty + P * 2, c['wall_light'])
-        
-        if pattern == 1:
-            self.px_surf(surface, tx + P * 10, ty + P * 6, c['wall_dark'])
-        elif pattern == 2:
-            self.px_surf(surface, tx + P * 5, ty + P * 10, c['wall_light'])
+            self.px_surf(surface, tx + P, ty + P, c['wall_light'])
+            self.px_surf(surface, tx + P * 2, ty + P, c['wall_light'])
+            self.px_surf(surface, tx + P, ty + P * 2, c['wall_light'])
+            
+            if pattern == 1:
+                self.px_surf(surface, tx + P * 10, ty + P * 6, c['wall_dark'])
+            elif pattern == 2:
+                self.px_surf(surface, tx + P * 5, ty + P * 10, c['wall_light'])
 
     def render_shadows(self, surface):
         P = self.P

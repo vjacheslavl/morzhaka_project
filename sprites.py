@@ -407,18 +407,18 @@ def create_shadow_boss_sprite():
         [0, 0, 5, 5, 0, 5, 5, 0, 0],
     ]
 
-    black_body = (10, 10, 12)
-    red_eyes = (200, 30, 30)
-    pink_nose = (80, 40, 50)
-    cat_ears = (5, 5, 8)
-    dark_cape = (45, 45, 50)
+    black_body = (5, 5, 5)
+    black_eyes = (0, 0, 0)
+    black_nose = (0, 0, 0)
+    black_ears = (0, 0, 0)
+    black_cape = (0, 0, 0)
 
     colors = {
         1: black_body,
-        2: red_eyes,
-        3: pink_nose,
-        4: cat_ears,
-        5: dark_cape
+        2: black_eyes,
+        3: black_nose,
+        4: black_ears,
+        5: black_cape
     }
 
     width = len(sprite_data[0]) * SHADOW_BOSS_PIXEL_SIZE
@@ -432,6 +432,58 @@ def create_shadow_boss_sprite():
                     sprite, colors[pixel],
                     (x * SHADOW_BOSS_PIXEL_SIZE, y * SHADOW_BOSS_PIXEL_SIZE,
                      SHADOW_BOSS_PIXEL_SIZE, SHADOW_BOSS_PIXEL_SIZE)
+                )
+
+    return sprite
+
+
+def create_shadow_enemy_sprite(is_light=True):
+    """Create shadow minion sprite - similar to castle enemies but gray."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+
+    if is_light:
+        skin = (200, 200, 205)
+        eyes = (20, 20, 20)
+        body = (170, 170, 175)
+        accent = (130, 130, 135)
+        boots = (150, 150, 155)
+    else:
+        skin = (70, 70, 75)
+        eyes = (220, 220, 220)
+        body = (50, 50, 55)
+        accent = (35, 35, 40)
+        boots = (45, 45, 50)
+
+    colors = {
+        1: skin,
+        2: eyes,
+        3: body,
+        5: accent,
+        6: boots
+    }
+
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
                 )
 
     return sprite

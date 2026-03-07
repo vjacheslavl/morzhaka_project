@@ -232,43 +232,76 @@ def create_ice_cave_music():
 
 def create_final_boss_music():
     sample_rate = 22050
-    duration = 2.5
+    duration = 8.0
     n_samples = int(sample_rate * duration)
     buf = array.array('h', [0] * n_samples)
+
+    section1 = [55.00, 65.41, 73.42, 82.41, 73.42, 65.41, 55.00, 49.00]
+    section2 = [55.00, 58.27, 69.30, 82.41, 87.31, 82.41, 69.30, 55.00]
     
-    chords = [110.00, 130.81, 146.83, 164.81, 130.81, 110.00, 98.00, 110.00]
-    note_duration = duration / len(chords)
-    
+    all_chords = section1 + section2
+    note_duration = duration / len(all_chords)
+
     for i in range(n_samples):
         t = i / sample_rate
-        note_idx = int(t / note_duration) % len(chords)
-        root = chords[note_idx]
+        note_idx = int(t / note_duration) % len(all_chords)
+        section = note_idx // 8
+        root = all_chords[note_idx]
         fifth = root * 1.5
-        
-        bass = math.sin(2 * math.pi * root * 0.5 * t) * 1.2
-        distorted = math.tanh(math.sin(2 * math.pi * root * t) * 5) * 0.6
-        distorted += math.tanh(math.sin(2 * math.pi * fifth * t) * 5) * 0.5
-        
-        for h in range(2, 12):
-            distorted += 0.15 * math.sin(2 * math.pi * root * h * t + math.sin(t * 7)) / h
-        
-        beat_pos = (t * 8) % 1
+        octave = root * 2
+
+        deep_bass = math.sin(2 * math.pi * root * 0.25 * t) * 1.2
+        deep_bass += math.sin(2 * math.pi * root * 0.5 * t) * 0.9
+
+        if section == 0:
+            power = math.tanh(math.sin(2 * math.pi * root * t) * 4) * 0.7
+            power += math.tanh(math.sin(2 * math.pi * fifth * t) * 3) * 0.5
+            for h in range(2, 8):
+                power += 0.1 * math.sin(2 * math.pi * root * h * t) / h
+        else:
+            power = math.tanh(math.sin(2 * math.pi * root * t) * 5) * 0.8
+            power += math.tanh(math.sin(2 * math.pi * fifth * t) * 4) * 0.6
+            power += math.tanh(math.sin(2 * math.pi * octave * t) * 3) * 0.4
+            for h in range(2, 10):
+                power += 0.12 * math.sin(2 * math.pi * root * h * t + math.sin(t * 5)) / h
+
+        bpm = 8
+        beat_pos = (t * bpm) % 1
         kick = 0
-        if beat_pos < 0.06:
-            kick = math.sin(2 * math.pi * 45 * beat_pos) * (1 - beat_pos * 16) * 1.2
-        
+        if beat_pos < 0.07:
+            kick = math.sin(2 * math.pi * 38 * beat_pos) * (1 - beat_pos * 14) * 1.4
+
+        double_kick = 0
+        if section == 1 and (int(t * bpm) % 4 == 3) and beat_pos > 0.5 and beat_pos < 0.57:
+            double_kick = math.sin(2 * math.pi * 38 * (beat_pos - 0.5)) * (1 - (beat_pos - 0.5) * 14) * 1.2
+
         snare = 0
-        if int(t * 8) % 2 == 1 and beat_pos < 0.03:
-            snare = (hash(int(t * 10000)) % 1000 / 500 - 1) * 0.8
+        if int(t * bpm) % 2 == 1 and beat_pos < 0.04:
+            snare = (hash(int(t * 10000)) % 1000 / 500 - 1) * 0.9
+
+        evil_lead = math.sin(2 * math.pi * root * 4 * t + math.sin(t * 12) * 2) * 0.35
+        if section == 1:
+            evil_lead += math.sin(2 * math.pi * root * 3 * t + math.sin(t * 8)) * 0.25
+
+        choir = math.sin(2 * math.pi * root * 2 * t) * 0.25
+        choir += math.sin(2 * math.pi * fifth * t) * 0.2
+        choir *= (0.6 + 0.4 * math.sin(t * 2))
+
+        strings = math.sin(2 * math.pi * root * t) * 0.3
+        strings += math.sin(2 * math.pi * root * 1.5 * t) * 0.2
+        strings *= (0.7 + 0.3 * math.sin(t * 3))
+
+        note_pos = t % note_duration
+        envelope = min(1.0, note_pos * 30) * max(0.75, 1 - note_pos / note_duration * 0.25)
         
-        synth = math.sin(2 * math.pi * root * 4 * t + math.sin(t * 15)) * 0.3
-        
-        envelope = min(1.0, (t % note_duration) * 40) * max(0.8, 1 - (t % note_duration) / note_duration * 0.3)
-        val = int((bass * 2500 + distorted * 3500 + kick * 4000 + snare * 3000 + synth * 2000) * envelope)
+        intensity = 0.85 + 0.15 * (section)
+
+        val = int((deep_bass * 2800 + power * 3500 + kick * 4500 + double_kick * 3800 + 
+                   snare * 3000 + evil_lead * 2200 + choir * 1800 + strings * 1500) * envelope * intensity)
         buf[i] = max(-32767, min(32767, val))
-    
+
     sound = pygame.mixer.Sound(buffer=buf)
-    sound.set_volume(0.4)
+    sound.set_volume(0.5)
     return sound
 
 

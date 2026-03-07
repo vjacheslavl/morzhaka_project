@@ -1,6 +1,40 @@
 def create_levels():
     levels = []
     
+    # Level 0 - Morzhaka Village Hub (3 doors)
+    # Castle on top, Ice Cave on left, Dungeon on right
+    village = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+            [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+            [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (12, 7),
+        'exit': None,
+        'enemy_count': 0,
+        'is_village': True,
+        'location': 0,
+        'doors': {
+            'castle': (12, 0),
+            'ice_cave': (0, 7),
+            'dungeon': (24, 7)
+        }
+    }
+    levels.append(village)
+    
+    # === LOCATION 1: Dungeon ===
+    
     # Level 1 - Simple introduction
     level1 = {
         'tiles': [
@@ -22,7 +56,8 @@ def create_levels():
         'spawn': (2, 2),
         'exit': (22, 11),
         'enemy_spawn': (20, 10),
-        'enemy_count': 2
+        'enemy_count': 2,
+        'location': 1
     }
     levels.append(level1)
     
@@ -48,9 +83,11 @@ def create_levels():
         'exit': (23, 11),
         'enemy_spawn': (21, 9),
         'enemy_count': 3,
+        'location': 1,
         'lasers': [
-            {'start': (1, 7), 'end': (5, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': True},
-            {'start': (12, 7), 'end': (14, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': False},
+            {'start': (9, 5), 'end': (9, 7), 'on_duration': 90, 'off_duration': 120, 'start_on': True},
+            {'start': (11, 7), 'end': (11, 9), 'on_duration': 85, 'off_duration': 110, 'start_on': False},
+            {'start': (15, 9), 'end': (15, 12), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
         ]
     }
     levels.append(level2)
@@ -77,16 +114,17 @@ def create_levels():
         'exit': (23, 11),
         'enemy_spawn': (20, 9),
         'enemy_count': 6,
+        'location': 1,
         'lasers': [
-            {'start': (6, 5), 'end': (9, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': True},
-            {'start': (13, 5), 'end': (17, 5), 'on_duration': 75, 'off_duration': 90, 'start_on': False},
+            {'start': (5, 5), 'end': (5, 7), 'on_duration': 75, 'off_duration': 90, 'start_on': True},
+            {'start': (11, 5), 'end': (11, 7), 'on_duration': 70, 'off_duration': 85, 'start_on': False},
             {'start': (7, 9), 'end': (7, 11), 'on_duration': 60, 'off_duration': 100, 'start_on': True},
         ]
     }
     levels.append(level3)
     
-    # Level 4 - Boss Arena with cover
-    boss_level = {
+    # Level 4 - Dungeon Boss Arena
+    dungeon_boss = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -108,13 +146,14 @@ def create_levels():
         'enemy_spawn': None,
         'enemy_count': 0,
         'is_boss_level': True,
-        'checkpoint': True
+        'is_dungeon_boss': True,
+        'location': 1
     }
-    levels.append(boss_level)
+    levels.append(dungeon_boss)
     
-    # === LOCATION 2: Ice Caves (after boss checkpoint) ===
+    # === LOCATION 2: Ice Caves ===
     
-    # Level 5 - Ice Cave Entrance (Winding Path)
+    # Level 5 - Ice Cave Entrance
     level5 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -137,14 +176,14 @@ def create_levels():
         'enemy_count': 3,
         'location': 2,
         'lasers': [
-            {'start': (1, 6), 'end': (5, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': True},
-            {'start': (12, 6), 'end': (15, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': False},
-            {'start': (4, 8), 'end': (8, 8), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
+            {'start': (11, 4), 'end': (11, 6), 'on_duration': 90, 'off_duration': 110, 'start_on': True},
+            {'start': (7, 6), 'end': (7, 8), 'on_duration': 85, 'off_duration': 105, 'start_on': False},
+            {'start': (15, 10), 'end': (15, 12), 'on_duration': 70, 'off_duration': 95, 'start_on': True},
         ]
     }
     levels.append(level5)
     
-    # Level 6 - Frozen Maze (Complex Corridors)
+    # Level 6 - Frozen Maze
     level6 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -167,13 +206,14 @@ def create_levels():
         'enemy_count': 4,
         'location': 2,
         'lasers': [
-            {'start': (1, 7), 'end': (6, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
-            {'start': (14, 7), 'end': (17, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': False},
+            {'start': (7, 5), 'end': (7, 7), 'on_duration': 80, 'off_duration': 100, 'start_on': True},
+            {'start': (12, 7), 'end': (12, 9), 'on_duration': 75, 'off_duration': 95, 'start_on': False},
+            {'start': (19, 9), 'end': (19, 11), 'on_duration': 70, 'off_duration': 90, 'start_on': True},
         ]
     }
     levels.append(level6)
     
-    # Level 7 - Crystal Labyrinth (Dead Ends)
+    # Level 7 - Crystal Labyrinth
     level7 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -196,14 +236,14 @@ def create_levels():
         'enemy_count': 5,
         'location': 2,
         'lasers': [
-            {'start': (4, 5), 'end': (8, 5), 'on_duration': 70, 'off_duration': 90, 'start_on': True},
-            {'start': (16, 5), 'end': (22, 5), 'on_duration': 70, 'off_duration': 90, 'start_on': False},
-            {'start': (3, 7), 'end': (10, 7), 'on_duration': 60, 'off_duration': 80, 'start_on': False},
+            {'start': (3, 5), 'end': (3, 7), 'on_duration': 70, 'off_duration': 90, 'start_on': True},
+            {'start': (11, 5), 'end': (11, 7), 'on_duration': 65, 'off_duration': 85, 'start_on': False},
+            {'start': (21, 5), 'end': (21, 7), 'on_duration': 65, 'off_duration': 85, 'start_on': True},
         ]
     }
     levels.append(level7)
     
-    # Level 8 - Icy Nightmare (Ultimate Maze)
+    # Level 8 - Icy Nightmare
     level8 = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -224,12 +264,17 @@ def create_levels():
         'spawn': (1, 1),
         'exit': (23, 12),
         'enemy_count': 6,
-        'location': 2
+        'location': 2,
+        'lasers': [
+            {'start': (5, 5), 'end': (5, 7), 'on_duration': 60, 'off_duration': 80, 'start_on': True},
+            {'start': (12, 5), 'end': (12, 7), 'on_duration': 55, 'off_duration': 75, 'start_on': False},
+            {'start': (19, 5), 'end': (19, 7), 'on_duration': 55, 'off_duration': 75, 'start_on': True},
+        ]
     }
     levels.append(level8)
     
-    # Level 9 - Final Boss in Ice Caves
-    ice_final_boss = {
+    # Level 9 - Ice Boss (Final Boss of Ice Caves)
+    ice_boss = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -250,11 +295,10 @@ def create_levels():
         'exit': None,
         'enemy_count': 0,
         'is_boss_level': True,
-        'is_final_boss': True,
-        'location': 2,
-        'checkpoint': True
+        'is_ice_boss': True,
+        'location': 2
     }
-    levels.append(ice_final_boss)
+    levels.append(ice_boss)
     
     # === LOCATION 3: Shadow Byako Castle ===
     
@@ -279,7 +323,12 @@ def create_levels():
         'spawn': (1, 1),
         'exit': (23, 1),
         'enemy_count': 4,
-        'location': 3
+        'location': 3,
+        'lasers': [
+            {'start': (5, 5), 'end': (5, 7), 'on_duration': 65, 'off_duration': 85, 'start_on': True},
+            {'start': (12, 7), 'end': (12, 9), 'on_duration': 60, 'off_duration': 80, 'start_on': False},
+            {'start': (17, 7), 'end': (17, 9), 'on_duration': 60, 'off_duration': 80, 'start_on': True},
+        ]
     }
     levels.append(level10)
     
@@ -304,7 +353,12 @@ def create_levels():
         'spawn': (1, 1),
         'exit': (23, 11),
         'enemy_count': 5,
-        'location': 3
+        'location': 3,
+        'lasers': [
+            {'start': (7, 5), 'end': (7, 7), 'on_duration': 60, 'off_duration': 80, 'start_on': True},
+            {'start': (12, 5), 'end': (12, 7), 'on_duration': 55, 'off_duration': 75, 'start_on': False},
+            {'start': (17, 9), 'end': (17, 11), 'on_duration': 55, 'off_duration': 75, 'start_on': True},
+        ]
     }
     levels.append(level11)
     
@@ -329,11 +383,42 @@ def create_levels():
         'spawn': (1, 1),
         'exit': (23, 11),
         'enemy_count': 6,
-        'location': 3
+        'location': 3,
+        'checkpoint': True,
+        'lasers': [
+            {'start': (3, 5), 'end': (3, 7), 'on_duration': 55, 'off_duration': 75, 'start_on': True},
+            {'start': (12, 5), 'end': (12, 7), 'on_duration': 50, 'off_duration': 70, 'start_on': False},
+            {'start': (21, 5), 'end': (21, 7), 'on_duration': 50, 'off_duration': 70, 'start_on': True},
+        ]
     }
     levels.append(level12)
     
-    # Level 13 - Shadow Lord's Throne (Castle Boss)
+    # Level 13 - Checkpoint before Shadow Byako
+    checkpoint_room = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 7),
+        'exit': (23, 7),
+        'enemy_count': 0,
+        'location': 3
+    }
+    levels.append(checkpoint_room)
+    
+    # Level 14 - Shadow Lord's Throne (Final Boss)
     castle_boss = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
