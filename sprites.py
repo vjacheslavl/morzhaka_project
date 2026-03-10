@@ -437,6 +437,138 @@ def create_shadow_boss_sprite():
     return sprite
 
 
+def create_summoned_ally_sprite():
+    """Create Morzhaka ally sprite - same size as player with golden color and funny eyebrows."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 7, 1, 5, 1, 5, 1, 7, 0],
+        [7, 2, 2, 1, 1, 1, 2, 2, 7],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+
+    golden_skin = (255, 215, 120)
+    golden_eyes = (180, 140, 60)
+    white_body = (255, 255, 245)
+    golden_accent = (220, 180, 80)
+    golden_boots = (200, 160, 70)
+    eyebrow_color = (80, 50, 20)
+
+    colors = {
+        1: golden_skin,
+        2: golden_eyes,
+        3: white_body,
+        5: golden_accent,
+        6: golden_boots,
+        7: eyebrow_color
+    }
+
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
+
+    return sprite
+
+
+def create_npc_sprite(hat_type='wizard'):
+    """Create NPC sprite - same as player but with a hat on top."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+    
+    tan_skin = (212, 184, 150)
+    dark_blue_eyes = (26, 74, 110)
+    white_body = (245, 245, 240)
+    brown_accent = (139, 105, 20)
+    light_blue = (135, 180, 220)
+    
+    colors = {
+        1: tan_skin,
+        2: dark_blue_eyes,
+        3: white_body,
+        5: brown_accent,
+        6: light_blue
+    }
+    
+    hat_height = 6
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE + hat_height * PIXEL_SIZE
+    
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+    
+    hat_offset_y = hat_height * PIXEL_SIZE
+    
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE + hat_offset_y, PIXEL_SIZE, PIXEL_SIZE)
+                )
+    
+    P = PIXEL_SIZE
+    
+    if hat_type == 'wizard':
+        hat_color = (80, 60, 140)
+        hat_light = (120, 100, 180)
+        star_color = (255, 220, 100)
+        
+        points = [
+            (4 * P, 0),
+            (0, 6 * P),
+            (9 * P, 6 * P)
+        ]
+        pygame.draw.polygon(sprite, hat_color, points)
+        pygame.draw.rect(sprite, hat_light, (0, 5 * P, 9 * P, 2 * P))
+        pygame.draw.rect(sprite, star_color, (3 * P, 2 * P, 2 * P, 2 * P))
+        pygame.draw.rect(sprite, star_color, (4 * P, P, P, P))
+        
+    elif hat_type == 'farmer':
+        hat_color = (180, 150, 80)
+        hat_dark = (140, 110, 50)
+        straw_color = (220, 200, 100)
+        
+        pygame.draw.rect(sprite, hat_color, (P, 3 * P, 7 * P, 3 * P))
+        pygame.draw.rect(sprite, hat_dark, (0, 5 * P, 9 * P, 2 * P))
+        pygame.draw.rect(sprite, straw_color, (7 * P, 4 * P, 3 * P, P))
+        
+    elif hat_type == 'top_hat':
+        hat_color = (30, 30, 35)
+        hat_light = (60, 60, 70)
+        band_color = (150, 50, 50)
+        
+        pygame.draw.rect(sprite, hat_color, (P, 0, 7 * P, 6 * P))
+        pygame.draw.rect(sprite, hat_light, (0, 5 * P, 9 * P, 2 * P))
+        pygame.draw.rect(sprite, band_color, (P, 3 * P, 7 * P, P))
+    
+    return sprite
+
+
 def create_shadow_enemy_sprite(is_light=True):
     """Create shadow minion sprite - similar to castle enemies but gray."""
     sprite_data = [

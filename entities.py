@@ -188,17 +188,29 @@ class HealthKit:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.size = 20
+        self.width = 36
+        self.height = 24
         self.active = True
 
     def draw(self, screen):
-        pygame.draw.rect(screen, WHITE, (self.x, self.y, self.size, self.size))
-        pygame.draw.rect(screen, GREEN, (self.x + 2, self.y + 2, self.size - 4, self.size - 4))
-        pygame.draw.rect(screen, WHITE, (self.x + 7, self.y + 4, 6, 12))
-        pygame.draw.rect(screen, WHITE, (self.x + 4, self.y + 7, 12, 6))
+        P = 3
+        x, y = int(self.x), int(self.y)
+        fish_body = (255, 180, 100)
+        fish_belly = (255, 220, 180)
+        fish_fin = (255, 140, 60)
+        fish_eye = (40, 40, 40)
+        fish_highlight = (255, 240, 200)
+        pygame.draw.rect(screen, fish_fin, (x, y + 4*P, 2*P, 4*P))
+        pygame.draw.rect(screen, fish_body, (x + 2*P, y + 2*P, 6*P, 4*P))
+        pygame.draw.rect(screen, fish_belly, (x + 2*P, y + 4*P, 6*P, 2*P))
+        pygame.draw.rect(screen, fish_body, (x + 8*P, y + 3*P, 2*P, 2*P))
+        pygame.draw.rect(screen, fish_fin, (x + 4*P, y + P, 2*P, P))
+        pygame.draw.rect(screen, fish_fin, (x + 4*P, y + 6*P, 2*P, P))
+        pygame.draw.rect(screen, fish_highlight, (x + 3*P, y + 3*P, P, P))
+        pygame.draw.rect(screen, fish_eye, (x + 7*P, y + 3*P, P, P))
 
     def get_rect(self):
-        return pygame.Rect(self.x, self.y, self.size, self.size)
+        return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def collides_with_player(self, player):
         return self.get_rect().colliderect(player.get_rect())
@@ -335,6 +347,345 @@ class Laser:
                         pygame.draw.line(screen, off_color,
                                        (self.rect.centerx, segment_y),
                                        (self.rect.centerx, min(segment_y + 8, self.rect.bottom)), 2)
+
+
+class NPC:
+    PHRASES = [
+        "i am morzhaka",
+        "hello morzhaka",
+        "i cut water with scissors",
+        "i want steak",
+        "me be morzhaka",
+        "i love morzhaka tea",
+    ]
+    
+    def __init__(self, x, y, hat_type='wizard', name='Villager'):
+        from sprites import create_npc_sprite
+        self.x = x
+        self.y = y
+        self.hat_type = hat_type
+        self.name = name
+        self.sprite = create_npc_sprite(hat_type)
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.phrases = self.PHRASES
+        self.current_phrase = None
+        self.phrase_timer = 0
+        self.phrase_duration = 180
+        self.animation_timer = 0
+        self.bob_offset = 0
+    
+    def interact(self):
+        self.current_phrase = random.choice(self.phrases)
+        self.phrase_timer = self.phrase_duration
+    
+    def update(self):
+        self.animation_timer += 1
+        self.bob_offset = int(2 * ((self.animation_timer // 20) % 2))
+        
+        if self.phrase_timer > 0:
+            self.phrase_timer -= 1
+            if self.phrase_timer <= 0:
+                self.current_phrase = None
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+    
+    def is_player_nearby(self, player, distance=60):
+        px = player.x + player.width // 2
+        py = player.y + player.height // 2
+        nx = self.x + self.width // 2
+        ny = self.y + self.height // 2
+        return ((px - nx) ** 2 + (py - ny) ** 2) ** 0.5 < distance
+    
+    def draw(self, screen):
+        screen.blit(self.sprite, (int(self.x), int(self.y) - self.bob_offset))
+    
+    def draw_speech_bubble(self, screen, font):
+        if not self.current_phrase:
+            return
+        
+        bubble_padding = 10
+        text_surface = font.render(self.current_phrase, True, (40, 40, 40))
+        text_width = text_surface.get_width()
+        text_height = text_surface.get_height()
+        
+        bubble_width = text_width + bubble_padding * 2
+        bubble_height = text_height + bubble_padding * 2
+        
+        bubble_x = int(self.x + self.width // 2 - bubble_width // 2)
+        bubble_y = int(self.y - bubble_height - 20)
+        
+        if bubble_x < 10:
+            bubble_x = 10
+        if bubble_x + bubble_width > 1190:
+            bubble_x = 1190 - bubble_width
+        
+        pygame.draw.rect(screen, (255, 255, 240), (bubble_x, bubble_y, bubble_width, bubble_height), border_radius=8)
+        pygame.draw.rect(screen, (100, 80, 60), (bubble_x, bubble_y, bubble_width, bubble_height), 2, border_radius=8)
+        
+        tail_points = [
+            (int(self.x + self.width // 2) - 5, bubble_y + bubble_height),
+            (int(self.x + self.width // 2) + 5, bubble_y + bubble_height),
+            (int(self.x + self.width // 2), bubble_y + bubble_height + 10)
+        ]
+        pygame.draw.polygon(screen, (255, 255, 240), tail_points)
+        pygame.draw.line(screen, (100, 80, 60), tail_points[0], tail_points[2], 2)
+        pygame.draw.line(screen, (100, 80, 60), tail_points[1], tail_points[2], 2)
+        
+        screen.blit(text_surface, (bubble_x + bubble_padding, bubble_y + bubble_padding))
+        
+        name_surface = font.render(self.name, True, (80, 60, 40))
+        name_x = int(self.x + self.width // 2 - name_surface.get_width() // 2)
+        name_y = int(self.y + self.height + 5)
+        screen.blit(name_surface, (name_x, name_y))
+
+
+class SummonedAlly:
+    """Morzhaka ally that fights alongside the player."""
+    def __init__(self, x, y):
+        from sprites import create_summoned_ally_sprite
+        from constants import TILE_SIZE
+        self.TILE_SIZE = TILE_SIZE
+        self.x = x
+        self.y = y
+        self.sprite = create_summoned_ally_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = 2.5
+        self.max_health = 20
+        self.health = self.max_health
+        self.attack_cooldown = 0
+        self.attack_cooldown_max = 84
+        self.damage_cooldown = 0
+        self.damage_cooldown_max = 60
+        self.detection_range = 150
+        self.attack_range = 35
+        self.target = None
+        self.blink_timer = 0
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 20
+    
+    def update(self, player, enemies, boss, final_boss, shadow_boss, dungeon):
+        self.find_target(player, enemies, boss, final_boss, shadow_boss)
+        
+        self.path_update_timer += 1
+        
+        if self.target:
+            self.move_towards_target(dungeon)
+        else:
+            self.follow_player(player, dungeon)
+        
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
+        
+        if self.damage_cooldown > 0:
+            self.damage_cooldown -= 1
+        
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+    
+    def find_target(self, player, enemies, boss, final_boss, shadow_boss):
+        if boss:
+            self.target = boss
+            return
+        
+        if final_boss:
+            self.target = final_boss
+            return
+        
+        if shadow_boss:
+            self.target = shadow_boss
+            return
+        
+        closest_dist = float('inf')
+        closest_target = None
+        
+        px = player.x + player.width // 2
+        py = player.y + player.height // 2
+        
+        for enemy in enemies:
+            enemy_dist_to_player = ((px - enemy.x) ** 2 + (py - enemy.y) ** 2) ** 0.5
+            if enemy_dist_to_player < self.detection_range:
+                dist = ((self.x - enemy.x) ** 2 + (self.y - enemy.y) ** 2) ** 0.5
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest_target = enemy
+        
+        self.target = closest_target
+    
+    def update_path(self, target_x, target_y, dungeon):
+        from pathfinding import find_path
+        my_tile = (int((self.x + self.width // 2) // self.TILE_SIZE),
+                   int((self.y + self.height // 2) // self.TILE_SIZE))
+        target_tile = (int((target_x) // self.TILE_SIZE),
+                       int((target_y) // self.TILE_SIZE))
+        self.path = find_path(my_tile, target_tile, dungeon.tiles)
+    
+    def move_towards_target(self, dungeon):
+        if not self.target:
+            return
+        
+        dx = self.target.x - self.x
+        dy = self.target.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist <= self.attack_range:
+            return
+        
+        if dist < 60:
+            if dist > 0:
+                dx = dx / dist * self.speed
+                dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+            return
+        
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(self.target.x + self.target.width // 2, 
+                           self.target.y + self.target.height // 2, dungeon)
+        
+        if not self.path:
+            if dist > 0:
+                dx = dx / dist * self.speed
+                dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * self.TILE_SIZE + self.TILE_SIZE // 2 - self.width // 2
+        target_y = target_tile[1] * self.TILE_SIZE + self.TILE_SIZE // 2 - self.height // 2
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_tile = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist_to_tile < self.speed:
+            self.x = target_x
+            self.y = target_y
+            self.path.pop(0)
+        else:
+            dx = dx / dist_to_tile * self.speed
+            dy = dy / dist_to_tile * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+    
+    def follow_player(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist <= 40:
+            return
+        
+        if dist < 80:
+            if dist > 0:
+                dx = dx / dist * self.speed
+                dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+            return
+        
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player.x + player.width // 2, 
+                           player.y + player.height // 2, dungeon)
+        
+        if not self.path:
+            if dist > 0:
+                dx = dx / dist * self.speed
+                dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+            return
+        
+        target_tile = self.path[0]
+        target_x = target_tile[0] * self.TILE_SIZE + self.TILE_SIZE // 2 - self.width // 2
+        target_y = target_tile[1] * self.TILE_SIZE + self.TILE_SIZE // 2 - self.height // 2
+        
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist_to_tile = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist_to_tile < self.speed:
+            self.x = target_x
+            self.y = target_y
+            self.path.pop(0)
+        else:
+            dx = dx / dist_to_tile * self.speed
+            dy = dy / dist_to_tile * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+    
+    def try_attack(self, enemies, boss, final_boss, shadow_boss):
+        if self.attack_cooldown > 0:
+            return None
+        
+        if not self.target:
+            return None
+        
+        dx = self.target.x - self.x
+        dy = self.target.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        
+        if dist <= self.attack_range + 15:
+            self.attack_cooldown = self.attack_cooldown_max
+            return self.target
+        
+        return None
+    
+    def take_damage(self, amount=1):
+        if self.damage_cooldown > 0:
+            return False
+        self.health -= amount
+        self.blink_timer = 10
+        self.damage_cooldown = self.damage_cooldown_max
+        return self.health <= 0
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+    
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (int(self.x), int(self.y)))
+        
+        bar_width = 30
+        bar_height = 4
+        bar_x = int(self.x + self.width // 2 - bar_width // 2)
+        bar_y = int(self.y - 8)
+        
+        pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_width, bar_height))
+        health_width = int(bar_width * self.health / self.max_health)
+        pygame.draw.rect(screen, (100, 255, 100), (bar_x, bar_y, health_width, bar_height))
+        pygame.draw.rect(screen, (255, 255, 255), (bar_x, bar_y, bar_width, bar_height), 1)
 
 
 class DeathParticle:

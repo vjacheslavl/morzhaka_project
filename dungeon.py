@@ -26,6 +26,14 @@ class Dungeon:
                 'floor_light': (130, 110, 75),
                 'floor_dark': (85, 70, 45),
                 'floor_accent': (100, 80, 55),
+                'wood_main': (139, 90, 43),
+                'wood_light': (160, 110, 60),
+                'wood_dark': (100, 65, 30),
+                'wood_plank': (120, 80, 40),
+                'roof_main': (120, 60, 40),
+                'roof_light': (150, 80, 55),
+                'roof_dark': (90, 45, 25),
+                'roof_edge': (70, 35, 20),
             }
         elif self.location == 3:
             self.colors = {
@@ -101,8 +109,15 @@ class Dungeon:
         
         for y in range(self.height):
             for x in range(self.width):
-                if self.tiles[y][x] == 1:
+                tile = self.tiles[y][x]
+                if tile == 1:
                     self.render_wall_tile(self.static_surface, x, y)
+                elif tile == 2:
+                    self.render_house_wall_tile(self.static_surface, x, y)
+                elif tile == 3:
+                    self.render_roof_tile(self.static_surface, x, y)
+                elif tile == 4:
+                    self.render_door_tile(self.static_surface, x, y)
                 else:
                     self.render_floor_tile(self.static_surface, x, y)
         
@@ -198,6 +213,84 @@ class Dungeon:
             elif pattern == 2:
                 self.px_surf(surface, tx + P * 5, ty + P * 10, c['wall_light'])
 
+    def render_house_wall_tile(self, surface, x, y):
+        tx, ty = x * TILE_SIZE, y * TILE_SIZE
+        P = self.P
+        c = self.colors
+        
+        pygame.draw.rect(surface, c['wood_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
+        
+        plank_height = 4 * P
+        for row in range(4):
+            plank_y = ty + row * plank_height
+            pygame.draw.rect(surface, c['wood_dark'], (tx, plank_y, TILE_SIZE, P))
+            self.px_surf(surface, tx, plank_y + P, c['wood_light'])
+            self.px_surf(surface, tx + P, plank_y + P, c['wood_light'])
+        
+        pattern = self.wall_pattern.get((x, y), 0)
+        if pattern == 0:
+            self.px_surf(surface, tx + P * 5, ty + P * 6, c['wood_dark'])
+        elif pattern == 1:
+            self.px_surf(surface, tx + P * 10, ty + P * 10, c['wood_dark'])
+        elif pattern == 2:
+            self.px_surf(surface, tx + P * 3, ty + P * 12, c['wood_light'])
+        
+        pygame.draw.rect(surface, c['wood_dark'], (tx, ty, P, TILE_SIZE))
+        pygame.draw.rect(surface, c['wood_dark'], (tx + TILE_SIZE - P, ty, P, TILE_SIZE))
+
+    def render_roof_tile(self, surface, x, y):
+        tx, ty = x * TILE_SIZE, y * TILE_SIZE
+        P = self.P
+        c = self.colors
+        
+        pygame.draw.rect(surface, c['roof_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
+        
+        for row in range(4):
+            shingle_y = ty + row * 4 * P
+            offset = (4 * P) if row % 2 == 1 else 0
+            
+            pygame.draw.rect(surface, c['roof_dark'], (tx, shingle_y + 3 * P, TILE_SIZE, P))
+            
+            for col in range(3):
+                shingle_x = tx + col * 6 * P + offset
+                if shingle_x < tx + TILE_SIZE:
+                    self.px_surf(surface, shingle_x, shingle_y, c['roof_light'])
+                    self.px_surf(surface, shingle_x + P, shingle_y, c['roof_light'])
+        
+        pygame.draw.rect(surface, c['roof_edge'], (tx, ty, TILE_SIZE, P))
+        pygame.draw.rect(surface, c['roof_edge'], (tx, ty + TILE_SIZE - P, TILE_SIZE, P))
+
+    def render_door_tile(self, surface, x, y):
+        tx, ty = x * TILE_SIZE, y * TILE_SIZE
+        P = self.P
+        c = self.colors
+        
+        pygame.draw.rect(surface, c['floor_main'], (tx, ty, TILE_SIZE, TILE_SIZE))
+        
+        door_color = (100, 70, 45)
+        door_dark = (70, 50, 30)
+        door_light = (130, 95, 60)
+        frame_color = (80, 55, 35)
+        handle_color = (180, 160, 80)
+        
+        door_x = tx + 4 * P
+        door_y = ty + 2 * P
+        door_w = 8 * P
+        door_h = 12 * P
+        
+        pygame.draw.rect(surface, frame_color, (door_x - P, door_y - P, door_w + 2 * P, door_h + 2 * P))
+        pygame.draw.rect(surface, door_color, (door_x, door_y, door_w, door_h))
+        
+        pygame.draw.rect(surface, door_dark, (door_x + P, door_y + 2 * P, 2 * P, 3 * P))
+        pygame.draw.rect(surface, door_dark, (door_x + 5 * P, door_y + 2 * P, 2 * P, 3 * P))
+        pygame.draw.rect(surface, door_dark, (door_x + P, door_y + 7 * P, 2 * P, 3 * P))
+        pygame.draw.rect(surface, door_dark, (door_x + 5 * P, door_y + 7 * P, 2 * P, 3 * P))
+        
+        pygame.draw.circle(surface, handle_color, (door_x + door_w - 2 * P, door_y + door_h // 2), P + 1)
+        
+        pygame.draw.rect(surface, door_light, (door_x, door_y, door_w, P))
+        pygame.draw.rect(surface, door_light, (door_x, door_y, P, door_h))
+
     def render_shadows(self, surface):
         P = self.P
         c = self.colors
@@ -207,7 +300,7 @@ class Dungeon:
                 if self.tiles[y][x] == 0:
                     tx, ty = x * TILE_SIZE, y * TILE_SIZE
                     
-                    if y > 0 and self.tiles[y - 1][x] == 1:
+                    if y > 0 and self.tiles[y - 1][x] >= 1:
                         pygame.draw.rect(surface, c['floor_dark'], (tx, ty, TILE_SIZE, P * 2))
 
     def create_torch_frame(self, frame):
@@ -267,7 +360,8 @@ class Dungeon:
             if tile_x < 0 or tile_x >= self.width or tile_y < 0 or tile_y >= self.height:
                 return True
             
-            if self.tiles[tile_y][tile_x] == 1:
+            tile = self.tiles[tile_y][tile_x]
+            if tile >= 1 and tile != 4:
                 return True
         
         return False
