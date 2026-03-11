@@ -450,14 +450,14 @@ class Game:
             door_pos = doors['castle']
             if player_tile_y <= 2 and 10 <= player_tile_x <= 14:
                 if self.castle_unlocked:
-                    self.go_to_level(10)
+                    self.go_to_level(20)
                     return
         
         if 'ice_cave' in doors:
             door_pos = doors['ice_cave']
             if player_tile_x <= 2 and 6 <= player_tile_y <= 8:
                 if self.ice_cave_unlocked and not self.ice_cave_completed:
-                    self.go_to_level(5)
+                    self.go_to_level(10)
                     return
         
         if 'dungeon' in doors:
@@ -543,17 +543,18 @@ class Game:
         self.npcs = []
         level_data = self.levels[self.current_level]
         
-        if not level_data.get('is_village', False):
+        npc_data = level_data.get('npcs', [])
+        if not npc_data:
             return
         
-        npc_data = level_data.get('npcs', [])
         for npc_info in npc_data:
             pos = npc_info['pos']
             npc_x = pos[0] * TILE_SIZE + (TILE_SIZE - 36) // 2
             npc_y = pos[1] * TILE_SIZE + (TILE_SIZE - 42) // 2
             hat_type = npc_info.get('hat', 'wizard')
             name = npc_info.get('name', 'Villager')
-            self.npcs.append(NPC(npc_x, npc_y, hat_type, name))
+            custom_phrases = npc_info.get('phrases', None)
+            self.npcs.append(NPC(npc_x, npc_y, hat_type, name, custom_phrases))
 
     def spawn_one_enemy(self):
         if self.is_boss_level or self.is_shadow_boss_level or self.is_village:
@@ -1106,6 +1107,7 @@ class Game:
             self.summoned_ally.x = self.player.x + self.player.width + 10
             self.summoned_ally.y = self.player.y
         self.spawn_enemies()
+        self.spawn_npcs()
         self.projectiles = []
         self.enemy_projectiles = []
         self.death_particles = []
@@ -1159,13 +1161,17 @@ class Game:
             self.selected_bullet = 3
 
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
-            if self.is_village:
+            level_data = self.levels[self.current_level]
+            has_npcs = self.is_village or level_data.get('npcs', [])
+            npc_talked = False
+            if has_npcs:
                 for npc in self.npcs:
                     if npc.is_player_nearby(self.player) and npc.phrase_timer <= 0:
                         npc.interact()
                         self.shoot_cooldown = 15
+                        npc_talked = True
                         break
-            else:
+            if not npc_talked and not self.is_village:
                 proj_x = self.player.x + self.player.width // 2 - 4
                 proj_y = self.player.y + self.player.height // 2 - 4
                 if self.selected_bullet == 3 and self.explosive_bullet_unlocked:
@@ -1620,9 +1626,10 @@ class Game:
                 self.damage_cooldown = 60
                 self.regeneration_active = False
         
+        for npc in self.npcs:
+            npc.update()
+        
         if self.is_village:
-            for npc in self.npcs:
-                npc.update()
             self.check_village_doors()
         elif not self.is_boss_level and self.dungeon.check_exit(self.player):
             self.next_level()
@@ -1659,8 +1666,13 @@ class Game:
                 self.draw_village_well()
                 self.draw_village_doors()
                 self.draw_shop()
-                for npc in self.npcs:
-                    npc.draw(self.screen)
+            
+            level_data = self.levels[self.current_level]
+            if level_data.get('has_shop', False):
+                self.draw_checkpoint_shop()
+            
+            for npc in self.npcs:
+                npc.draw(self.screen)
             
             self.player.draw(self.screen)
             
@@ -1742,15 +1754,19 @@ class Game:
             if self.in_shop:
                 self.draw_shop_menu()
 
+            for npc in self.npcs:
+                npc.draw_speech_bubble(self.screen, self.small_font)
+                if npc.is_player_nearby(self.player) and not npc.current_phrase:
+                    prompt = self.small_font.render(f"[SPACE/ENTER] Talk to {npc.name}", True, (220, 200, 150))
+                    prompt_x = int(npc.x + npc.width // 2 - prompt.get_width() // 2)
+                    prompt_y = int(npc.y - 25)
+                    self.screen.blit(prompt, (prompt_x, prompt_y))
+            
+            level_data = self.levels[self.current_level]
             if self.is_village:
-                for npc in self.npcs:
-                    npc.draw_speech_bubble(self.screen, self.small_font)
-                    if npc.is_player_nearby(self.player) and not npc.current_phrase:
-                        prompt = self.small_font.render(f"[SPACE/ENTER] Talk to {npc.name}", True, (220, 200, 150))
-                        prompt_x = int(npc.x + npc.width // 2 - prompt.get_width() // 2)
-                        prompt_y = int(npc.y - 25)
-                        self.screen.blit(prompt, (prompt_x, prompt_y))
                 hint_text = self.small_font.render("Walk to a door to enter!", True, (180, 160, 100))
+            elif level_data.get('checkpoint', False) and level_data.get('has_shop', False):
+                hint_text = self.small_font.render("Safe zone! Rest and shop before continuing.", True, (100, 200, 100))
             elif self.is_shadow_boss_level:
                 hint_text = self.small_font.render("Defeat the Dark Lord!", True, (200, 30, 30))
             elif self.is_boss_level:
@@ -1780,6 +1796,26 @@ class Game:
         player_tile_x = int(self.player.x // TILE_SIZE)
         player_tile_y = int(self.player.y // TILE_SIZE)
         if 10 <= player_tile_x <= 14 and 9 <= player_tile_y <= 11:
+            prompt = self.small_font.render("Press ENTER to shop", True, WHITE)
+            self.screen.blit(prompt, (cx - prompt.get_width() // 2, cy + 35))
+
+    def draw_checkpoint_shop(self):
+        level_data = self.levels[self.current_level]
+        shop_pos = level_data.get('shop_pos', (12, 6))
+        cx = shop_pos[0] * TILE_SIZE + TILE_SIZE // 2
+        cy = shop_pos[1] * TILE_SIZE
+        
+        pygame.draw.rect(self.screen, (100, 70, 50), (cx - 40, cy - 20, 80, 50))
+        pygame.draw.rect(self.screen, (80, 55, 40), (cx - 40, cy - 20, 80, 50), 3)
+        pygame.draw.rect(self.screen, (120, 90, 60), (cx - 35, cy - 15, 70, 8))
+        
+        sign_text = self.small_font.render("SHOP", True, YELLOW)
+        self.screen.blit(sign_text, (cx - sign_text.get_width() // 2, cy - 5))
+        
+        shop_area = level_data.get('shop_area', {'x': (10, 14), 'y': (5, 8)})
+        player_tile_x = int(self.player.x // TILE_SIZE)
+        player_tile_y = int(self.player.y // TILE_SIZE)
+        if shop_area['x'][0] <= player_tile_x <= shop_area['x'][1] and shop_area['y'][0] <= player_tile_y <= shop_area['y'][1]:
             prompt = self.small_font.render("Press ENTER to shop", True, WHITE)
             self.screen.blit(prompt, (cx - prompt.get_width() // 2, cy + 35))
 
@@ -2403,22 +2439,46 @@ class Game:
                                 self.paused = True
                                 self.pause_selection = 0
                         elif event.key == pygame.K_p and not self.game_won and not self.game_over:
-                            self.next_level()
+                            level_data = self.levels[self.current_level]
+                            if level_data.get('is_dungeon_boss', False):
+                                self.dungeon_completed = True
+                                self.ice_cave_unlocked = True
+                                self.ice_bullet_unlocked = True
+                                self.return_to_village()
+                            elif level_data.get('is_ice_boss', False):
+                                self.ice_cave_completed = True
+                                self.castle_unlocked = True
+                                self.explosive_bullet_unlocked = True
+                                self.return_to_village()
+                            elif level_data.get('is_shadow_boss', False):
+                                self.game_won = True
+                                if self.current_music:
+                                    self.current_music.stop()
+                            else:
+                                self.next_level()
                         elif event.key == pygame.K_e and not self.game_won and not self.game_over:
                             self.activate_ability()
-                        elif event.key == pygame.K_RETURN and self.is_village and not self.game_won and not self.game_over:
-                            npc_talked = False
-                            for npc in self.npcs:
-                                if npc.is_player_nearby(self.player):
-                                    npc.interact()
-                                    npc_talked = True
-                                    break
-                            if not npc_talked:
-                                player_tile_x = int(self.player.x // TILE_SIZE)
-                                player_tile_y = int(self.player.y // TILE_SIZE)
-                                if 10 <= player_tile_x <= 14 and 9 <= player_tile_y <= 11:
-                                    self.in_shop = True
-                                    self.shop_selection = 0
+                        elif event.key == pygame.K_RETURN and not self.game_won and not self.game_over:
+                            level_data = self.levels[self.current_level]
+                            has_interactions = self.is_village or level_data.get('has_shop', False) or level_data.get('npcs', [])
+                            if has_interactions:
+                                npc_talked = False
+                                for npc in self.npcs:
+                                    if npc.is_player_nearby(self.player):
+                                        npc.interact()
+                                        npc_talked = True
+                                        break
+                                if not npc_talked:
+                                    player_tile_x = int(self.player.x // TILE_SIZE)
+                                    player_tile_y = int(self.player.y // TILE_SIZE)
+                                    if self.is_village and 10 <= player_tile_x <= 14 and 9 <= player_tile_y <= 11:
+                                        self.in_shop = True
+                                        self.shop_selection = 0
+                                    elif level_data.get('has_shop', False):
+                                        shop_area = level_data.get('shop_area', {'x': (10, 14), 'y': (5, 8)})
+                                        if shop_area['x'][0] <= player_tile_x <= shop_area['x'][1] and shop_area['y'][0] <= player_tile_y <= shop_area['y'][1]:
+                                            self.in_shop = True
+                                            self.shop_selection = 0
                         elif event.key == pygame.K_m:
                             self.coins = 99999999999
                         elif event.key == pygame.K_r and (self.game_won or self.game_over):

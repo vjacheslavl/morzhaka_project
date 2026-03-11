@@ -566,6 +566,49 @@ def create_npc_sprite(hat_type='wizard'):
         pygame.draw.rect(sprite, hat_light, (0, 5 * P, 9 * P, 2 * P))
         pygame.draw.rect(sprite, band_color, (P, 3 * P, 7 * P, P))
     
+    elif hat_type == 'miner':
+        hat_color = (180, 140, 60)
+        hat_dark = (140, 100, 40)
+        lamp_color = (255, 255, 150)
+        lamp_glow = (255, 200, 50)
+        
+        pygame.draw.rect(sprite, hat_color, (P, 2 * P, 7 * P, 4 * P))
+        pygame.draw.rect(sprite, hat_dark, (0, 5 * P, 9 * P, 2 * P))
+        pygame.draw.rect(sprite, lamp_glow, (3 * P, P, 3 * P, 2 * P))
+        pygame.draw.rect(sprite, lamp_color, (4 * P, P, P, P))
+    
+    elif hat_type == 'pirate':
+        hat_color = (40, 40, 45)
+        skull_color = (230, 230, 230)
+        bone_color = (200, 200, 200)
+        
+        pygame.draw.rect(sprite, hat_color, (0, 3 * P, 9 * P, 4 * P))
+        pygame.draw.polygon(sprite, hat_color, [(P, 3 * P), (4 * P, 0), (8 * P, 3 * P)])
+        pygame.draw.rect(sprite, skull_color, (3 * P, 4 * P, 3 * P, 2 * P))
+        pygame.draw.rect(sprite, bone_color, (2 * P, 5 * P, P, P))
+        pygame.draw.rect(sprite, bone_color, (6 * P, 5 * P, P, P))
+    
+    elif hat_type == 'knight':
+        helmet_color = (140, 140, 150)
+        helmet_light = (180, 180, 190)
+        visor_color = (40, 40, 50)
+        
+        pygame.draw.rect(sprite, helmet_color, (P, 0, 7 * P, 7 * P))
+        pygame.draw.rect(sprite, helmet_light, (2 * P, P, 5 * P, 2 * P))
+        pygame.draw.rect(sprite, visor_color, (2 * P, 4 * P, 5 * P, P))
+        pygame.draw.rect(sprite, helmet_light, (4 * P, 0, P, P))
+    
+    elif hat_type == 'ice_crown':
+        ice_color = (150, 200, 255)
+        ice_light = (200, 230, 255)
+        ice_dark = (100, 150, 200)
+        
+        pygame.draw.rect(sprite, ice_color, (P, 3 * P, 7 * P, 3 * P))
+        pygame.draw.rect(sprite, ice_light, (2 * P, P, P, 3 * P))
+        pygame.draw.rect(sprite, ice_light, (4 * P, 0, P, 4 * P))
+        pygame.draw.rect(sprite, ice_light, (6 * P, P, P, 3 * P))
+        pygame.draw.rect(sprite, ice_dark, (0, 5 * P, 9 * P, P))
+    
     return sprite
 
 

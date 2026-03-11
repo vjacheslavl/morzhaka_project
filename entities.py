@@ -359,7 +359,7 @@ class NPC:
         "i love morzhaka tea",
     ]
     
-    def __init__(self, x, y, hat_type='wizard', name='Villager'):
+    def __init__(self, x, y, hat_type='wizard', name='Villager', custom_phrases=None):
         from sprites import create_npc_sprite
         self.x = x
         self.y = y
@@ -368,7 +368,7 @@ class NPC:
         self.sprite = create_npc_sprite(hat_type)
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
-        self.phrases = self.PHRASES
+        self.phrases = custom_phrases if custom_phrases else self.PHRASES
         self.current_phrase = None
         self.phrase_timer = 0
         self.phrase_duration = 180

@@ -45,6 +45,14 @@ class Dungeon:
                 'floor_light': (85, 85, 95),
                 'floor_dark': (40, 40, 45),
                 'floor_accent': (55, 55, 60),
+                'wood_main': (50, 50, 55),
+                'wood_light': (70, 70, 75),
+                'wood_dark': (35, 35, 40),
+                'wood_plank': (45, 45, 50),
+                'roof_main': (40, 40, 45),
+                'roof_light': (60, 60, 65),
+                'roof_dark': (30, 30, 35),
+                'roof_edge': (25, 25, 30),
             }
         elif self.location == 2:
             self.colors = {
@@ -56,6 +64,14 @@ class Dungeon:
                 'floor_light': (200, 215, 230),
                 'floor_dark': (130, 155, 180),
                 'floor_accent': (100, 140, 180),
+                'wood_main': (120, 140, 170),
+                'wood_light': (150, 170, 200),
+                'wood_dark': (80, 100, 130),
+                'wood_plank': (100, 120, 150),
+                'roof_main': (100, 130, 180),
+                'roof_light': (140, 170, 220),
+                'roof_dark': (70, 95, 140),
+                'roof_edge': (50, 75, 120),
             }
         else:
             self.colors = {
@@ -67,6 +83,14 @@ class Dungeon:
                 'floor_light': (170, 155, 130),
                 'floor_dark': (100, 88, 72),
                 'floor_accent': (125, 110, 90),
+                'wood_main': (100, 70, 45),
+                'wood_light': (130, 95, 65),
+                'wood_dark': (70, 50, 30),
+                'wood_plank': (90, 65, 40),
+                'roof_main': (90, 50, 35),
+                'roof_light': (120, 70, 50),
+                'roof_dark': (65, 35, 22),
+                'roof_edge': (50, 28, 18),
             }
         
         self.generate_decorations()
