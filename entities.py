@@ -368,6 +368,7 @@ class NPC:
         self.sprite = create_npc_sprite(hat_type)
         self.width = self.sprite.get_width()
         self.height = self.sprite.get_height()
+        self.custom_phrases = custom_phrases
         self.phrases = custom_phrases if custom_phrases else self.PHRASES
         self.current_phrase = None
         self.phrase_timer = 0
@@ -686,6 +687,165 @@ class SummonedAlly:
         health_width = int(bar_width * self.health / self.max_health)
         pygame.draw.rect(screen, (100, 255, 100), (bar_x, bar_y, health_width, bar_height))
         pygame.draw.rect(screen, (255, 255, 255), (bar_x, bar_y, bar_width, bar_height), 1)
+
+
+class ShadowAlly:
+    """Gray shadow morzhaka that fights alongside the player - unlimited summons."""
+    def __init__(self, x, y):
+        from sprites import create_shadow_ally_sprite
+        from constants import TILE_SIZE
+        self.TILE_SIZE = TILE_SIZE
+        self.x = x
+        self.y = y
+        self.sprite = create_shadow_ally_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.speed = 2.8
+        self.max_health = 8
+        self.health = self.max_health
+        self.attack_cooldown = 0
+        self.attack_cooldown_max = 60
+        self.damage_cooldown = 0
+        self.damage_cooldown_max = 45
+        self.detection_range = 180
+        self.attack_range = 30
+        self.target = None
+        self.blink_timer = 0
+        self.lifetime = 1800
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 15
+
+    def update(self, player, enemies, boss, final_boss, shadow_boss, dungeon):
+        self.lifetime -= 1
+        if self.lifetime <= 0:
+            self.health = 0
+            return
+        
+        self.find_target(player, enemies, boss, final_boss, shadow_boss)
+
+        self.path_update_timer += 1
+
+        if self.target:
+            self.move_towards_target(dungeon)
+        else:
+            self.follow_player(player, dungeon)
+
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
+
+        if self.damage_cooldown > 0:
+            self.damage_cooldown -= 1
+
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
+    def find_target(self, player, enemies, boss, final_boss, shadow_boss):
+        if boss:
+            self.target = boss
+            return
+
+        if final_boss:
+            self.target = final_boss
+            return
+
+        if shadow_boss:
+            self.target = shadow_boss
+            return
+
+        closest_dist = float('inf')
+        closest_target = None
+
+        for enemy in enemies:
+            dx = enemy.x - self.x
+            dy = enemy.y - self.y
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+            if dist < self.detection_range and dist < closest_dist:
+                closest_dist = dist
+                closest_target = enemy
+
+        self.target = closest_target
+
+    def move_towards_target(self, dungeon):
+        if not self.target:
+            return
+
+        dx = self.target.x - self.x
+        dy = self.target.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist <= self.attack_range:
+            return
+
+        if dist > 0:
+            dx = dx / dist * self.speed
+            dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def follow_player(self, player, dungeon):
+        dx = player.x - self.x
+        dy = player.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist < 50:
+            return
+
+        if dist > 0:
+            dx = dx / dist * self.speed
+            dy = dy / dist * self.speed
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def try_attack(self, enemies, boss, final_boss, shadow_boss):
+        if self.attack_cooldown > 0:
+            return None
+
+        if not self.target:
+            return None
+
+        dx = self.target.x - self.x
+        dy = self.target.y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist <= self.attack_range + 15:
+            self.attack_cooldown = self.attack_cooldown_max
+            return self.target
+
+        return None
+
+    def take_damage(self, amount=1):
+        if self.damage_cooldown > 0:
+            return False
+        self.health -= amount
+        self.blink_timer = 10
+        self.damage_cooldown = self.damage_cooldown_max
+        return self.health <= 0
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (int(self.x), int(self.y)))
+
+        bar_width = 25
+        bar_height = 3
+        bar_x = int(self.x + self.width // 2 - bar_width // 2)
+        bar_y = int(self.y - 6)
+
+        pygame.draw.rect(screen, (40, 40, 40), (bar_x, bar_y, bar_width, bar_height))
+        health_width = int(bar_width * self.health / self.max_health)
+        pygame.draw.rect(screen, (150, 150, 180), (bar_x, bar_y, health_width, bar_height))
 
 
 class DeathParticle:

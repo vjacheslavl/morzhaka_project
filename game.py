@@ -12,12 +12,12 @@ from sounds import (
     BACKGROUND_MUSIC, BOSS_MUSIC, ICE_CAVE_MUSIC, FINAL_BOSS_MUSIC, CASTLE_MUSIC
 )
 from sprites import create_player_sprites, create_player_sprite
-from entities import Player, HealthKit, DeathParticle, NPC, SummonedAlly
+from entities import Player, HealthKit, DeathParticle, NPC, SummonedAlly, ShadowAlly
 from enemies import (
     Enemy, IceEnemy, CastleEnemyFast, CastleEnemyShooter,
-    Boss, IceBoss, FinalBoss, ShadowBoss, ShadowEnemy
+    Boss, IceBoss, FinalBoss, ShadowBoss, ShadowEnemy, BigShadowEnemy
 )
-from projectiles import Projectile, IceProjectile, ExplosiveProjectile
+from projectiles import Projectile, IceProjectile, ExplosiveProjectile, ShadowOrbProjectile
 from dungeon import Dungeon
 from levels import create_levels
 from menu import MenuEnemy, init_menu_background
@@ -50,6 +50,7 @@ class Game:
         self.settings_selection = 0
         self.master_volume = 0.5
         self.is_fullscreen = False
+        self.hard_mode = False
         self.init_menu_background()
         self.init_cutscene()
         self.init_ending_cutscene()
@@ -60,6 +61,7 @@ class Game:
         self.checkpoint_level = 0
         self.ice_bullet_unlocked = False
         self.explosive_bullet_unlocked = False
+        self.shadow_bullet_unlocked = False
         self.selected_bullet = 1
         self.death_particles = []
         
@@ -68,7 +70,19 @@ class Game:
         self.castle_unlocked = False
         self.dungeon_completed = False
         self.ice_cave_completed = False
+        self.castle_completed = False
         self.is_village = True
+        
+        self.location_start_time = 0
+        self.show_rank_screen = False
+        self.rank_screen_data = None
+        self.rank_display_timer = 0
+        self.pending_ending_cutscene = False
+        self.best_ranks = {
+            'dungeon': {'rank': None, 'time': None},
+            'ice_cave': {'rank': None, 'time': None},
+            'castle': {'rank': None, 'time': None}
+        }
         self.coins = 0
         
         self.has_dash = False
@@ -77,6 +91,13 @@ class Game:
         self.has_wall_breaker = False
         self.has_regeneration = False
         self.has_summon = False
+        self.has_shadow_army = False
+        self.shadow_allies = []
+        self.shadow_army_cooldown = 0
+        self.has_cape = False
+        self.cape_cooldown = 0
+        self.cape_active = False
+        self.cape_timer = 0
         self.current_ability = 0
         self.wall_breaker_cooldown = 0
         self.regeneration_cooldown = 0
@@ -97,6 +118,16 @@ class Game:
         self.shop_selection = 0
         self.in_inventory = False
         self.inventory_selection = 0
+        
+        self.ability_slots = 1
+        self.second_ability = 0
+        
+        self.quests_completed = set()
+        self.active_quest = None
+        self.quest_kill_count = 0
+        self.in_quest_dialog = False
+        self.quest_dialog_page = 0
+        self.quest_giver_talked = False
         
         self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
         
@@ -272,7 +303,8 @@ class Game:
 
         if self.ending_page >= len(self.ending_pages):
             self.in_ending_cutscene = False
-            self.game_won = True
+            self.castle_completed = True
+            self.return_to_village()
 
     def update_ending_cutscene(self):
         self.ending_timer += 1
@@ -450,22 +482,54 @@ class Game:
             door_pos = doors['castle']
             if player_tile_y <= 2 and 10 <= player_tile_x <= 14:
                 if self.castle_unlocked:
+                    self.location_start_time = pygame.time.get_ticks()
                     self.go_to_level(20)
                     return
-        
+
         if 'ice_cave' in doors:
             door_pos = doors['ice_cave']
             if player_tile_x <= 2 and 6 <= player_tile_y <= 8:
-                if self.ice_cave_unlocked and not self.ice_cave_completed:
+                if self.ice_cave_unlocked:
+                    self.location_start_time = pygame.time.get_ticks()
                     self.go_to_level(10)
                     return
-        
+
         if 'dungeon' in doors:
             door_pos = doors['dungeon']
             if player_tile_x >= 22 and 6 <= player_tile_y <= 8:
-                if self.dungeon_unlocked and not self.dungeon_completed:
+                if self.dungeon_unlocked:
+                    self.location_start_time = pygame.time.get_ticks()
                     self.go_to_level(1)
                     return
+
+    def get_player_damage(self, base_damage):
+        """Get player damage adjusted for hard mode."""
+        if self.hard_mode:
+            return max(1, base_damage // 2)
+        return base_damage
+
+    def get_enemy_damage(self, base_damage):
+        """Get enemy damage adjusted for hard mode."""
+        if self.hard_mode:
+            return base_damage * 2
+        return base_damage
+
+    def buff_enemy_for_hard_mode(self, enemy):
+        """Buff enemy stats for hard mode."""
+        if self.hard_mode and hasattr(enemy, 'health'):
+            enemy.health *= 2
+            enemy.max_health = enemy.health
+        return enemy
+
+    def buff_boss_for_hard_mode(self, boss):
+        """Buff boss stats for hard mode."""
+        if self.hard_mode and boss:
+            if hasattr(boss, 'health'):
+                boss.health = int(boss.health * 1.5)
+                boss.max_health = boss.health
+            if hasattr(boss, 'speed'):
+                boss.speed *= 1.5
+        return boss
 
     def spawn_enemies(self):
         self.enemies = []
@@ -488,6 +552,7 @@ class Game:
             boss_x = 20 * TILE_SIZE
             boss_y = 6 * TILE_SIZE
             self.shadow_boss = ShadowBoss(boss_x, boss_y)
+            self.buff_boss_for_hard_mode(self.shadow_boss)
             return
 
         if self.is_boss_level:
@@ -495,12 +560,16 @@ class Game:
             boss_y = 6 * TILE_SIZE
             if level_data.get('is_ice_boss', False):
                 self.final_boss = FinalBoss(boss_x, boss_y)
+                self.buff_boss_for_hard_mode(self.final_boss)
             elif level_data.get('is_dungeon_boss', False):
                 self.boss = Boss(boss_x, boss_y)
+                self.buff_boss_for_hard_mode(self.boss)
             elif self.current_location == 2:
                 self.boss = IceBoss(boss_x, boss_y)
+                self.buff_boss_for_hard_mode(self.boss)
             else:
                 self.boss = Boss(boss_x, boss_y)
+                self.buff_boss_for_hard_mode(self.boss)
             return
         
         enemy_count = level_data.get('enemy_count', 0)
@@ -530,13 +599,15 @@ class Game:
                     enemy_y = tile_y * TILE_SIZE + 4
                     if self.current_location == 3:
                         if random.random() < 0.5:
-                            self.enemies.append(CastleEnemyFast(enemy_x, enemy_y))
+                            enemy = CastleEnemyFast(enemy_x, enemy_y)
                         else:
-                            self.enemies.append(CastleEnemyShooter(enemy_x, enemy_y))
+                            enemy = CastleEnemyShooter(enemy_x, enemy_y)
                     elif self.current_location == 2:
-                        self.enemies.append(IceEnemy(enemy_x, enemy_y))
+                        enemy = IceEnemy(enemy_x, enemy_y)
                     else:
-                        self.enemies.append(Enemy(enemy_x, enemy_y))
+                        enemy = Enemy(enemy_x, enemy_y)
+                    self.buff_enemy_for_hard_mode(enemy)
+                    self.enemies.append(enemy)
                     spawned += 1
 
     def spawn_npcs(self):
@@ -583,13 +654,15 @@ class Game:
                     enemy_y = tile_y * TILE_SIZE + 4
                     if self.current_location == 3:
                         if random.random() < 0.5:
-                            self.enemies.append(CastleEnemyFast(enemy_x, enemy_y))
+                            enemy = CastleEnemyFast(enemy_x, enemy_y)
                         else:
-                            self.enemies.append(CastleEnemyShooter(enemy_x, enemy_y))
+                            enemy = CastleEnemyShooter(enemy_x, enemy_y)
                     elif self.current_location == 2:
-                        self.enemies.append(IceEnemy(enemy_x, enemy_y))
+                        enemy = IceEnemy(enemy_x, enemy_y)
                     else:
-                        self.enemies.append(Enemy(enemy_x, enemy_y))
+                        enemy = Enemy(enemy_x, enemy_y)
+                    self.buff_enemy_for_hard_mode(enemy)
+                    self.enemies.append(enemy)
                     return
 
     def spawn_health_kit(self):
@@ -608,38 +681,56 @@ class Game:
             kit_y = pos[1] * TILE_SIZE + (TILE_SIZE - 20) // 2
             self.health_kits.append(HealthKit(kit_x, kit_y))
 
-    def activate_ability(self):
-        if self.current_ability == 4:
+    def activate_ability(self, slot=1):
+        ability = self.current_ability if slot == 1 else self.second_ability
+        
+        if ability == 0:
+            return
+        
+        if ability == 4:
             if self.wall_breaker_cooldown <= 0:
                 self.break_wall()
                 self.wall_breaker_cooldown = 1800
             return
-        
-        if self.current_ability == 5:
+
+        if ability == 5:
             if self.regeneration_cooldown <= 0 and not self.regeneration_active:
                 self.regeneration_active = True
                 self.regeneration_timer = 0
                 self.regeneration_cooldown = 3600
             return
-        
-        if self.current_ability == 6:
+
+        if ability == 6:
             if self.summon_cooldown <= 0 and self.summoned_ally is None:
                 self.summon_ally()
                 self.summon_cooldown = 18000
             return
-        
+
+        if ability == 7:
+            if self.shadow_army_cooldown <= 0:
+                self.summon_shadow_ally()
+                self.shadow_army_cooldown = 900
+            return
+
+        if ability == 8:
+            if self.cape_cooldown <= 0 and not self.cape_active:
+                self.cape_active = True
+                self.cape_timer = 600
+                self.cape_cooldown = 2700
+            return
+
         if self.ability_cooldown > 0:
             return
-        
-        if self.current_ability == 1:
+
+        if ability == 1:
             self.dash_active = True
             self.dash_timer = 60
             self.ability_cooldown = 1800
-        elif self.current_ability == 2:
+        elif ability == 2:
             if self.laser_cooldown <= 0:
                 self.spawn_player_laser()
                 self.laser_cooldown = 2100
-        elif self.current_ability == 3:
+        elif ability == 3:
             self.shield_active = True
             self.shield_timer = 900
             self.ability_cooldown = 1800
@@ -671,6 +762,14 @@ class Game:
         ally_y = self.player.y
         self.summoned_ally = SummonedAlly(ally_x, ally_y)
         self.summon_phrase_timer = 180
+
+    def summon_shadow_ally(self):
+        import random
+        offset_x = random.randint(-30, 30)
+        offset_y = random.randint(-30, 30)
+        ally_x = self.player.x + offset_x
+        ally_y = self.player.y + offset_y
+        self.shadow_allies.append(ShadowAlly(ally_x, ally_y))
 
     def spawn_player_laser(self):
         px = self.player.x + self.player.width // 2
@@ -753,7 +852,62 @@ class Game:
         
         if self.summon_cooldown > 0:
             self.summon_cooldown -= 1
-        
+
+        if self.shadow_army_cooldown > 0:
+            self.shadow_army_cooldown -= 1
+
+        if self.cape_cooldown > 0:
+            self.cape_cooldown -= 1
+
+        if self.cape_active:
+            self.cape_timer -= 1
+            if self.cape_timer <= 0:
+                self.cape_active = False
+
+        for shadow_ally in self.shadow_allies[:]:
+            shadow_ally.update(self.player, self.enemies, self.boss, self.final_boss, self.shadow_boss, self.dungeon)
+            if shadow_ally.health <= 0:
+                self.shadow_allies.remove(shadow_ally)
+                continue
+            attack_target = shadow_ally.try_attack(self.enemies, self.boss, self.final_boss, self.shadow_boss)
+            if attack_target:
+                if attack_target == self.boss:
+                    self.boss.take_damage(2)
+                    if self.boss.health <= 0:
+                        self.spawn_death_particles(self.boss)
+                        self.show_location_rank('dungeon', (pygame.time.get_ticks() - self.location_start_time) / 1000)
+                        self.boss = None
+                        self.return_to_village()
+                elif attack_target == self.final_boss:
+                    self.final_boss.take_damage(2)
+                    if self.final_boss.health <= 0:
+                        self.spawn_death_particles(self.final_boss)
+                        self.show_location_rank('ice_cave', (pygame.time.get_ticks() - self.location_start_time) / 1000)
+                        self.final_boss = None
+                        self.ice_bullet_unlocked = True
+                        self.return_to_village()
+                elif attack_target == self.shadow_boss:
+                    self.shadow_boss.take_damage(2)
+                    if self.shadow_boss.health <= 0:
+                        self.spawn_death_particles(self.shadow_boss)
+                        self.shadow_boss = None
+                        self.shadow_bullet_unlocked = True
+                        self.has_shadow_army = True
+                        self.show_location_rank('castle', (pygame.time.get_ticks() - self.location_start_time) / 1000)
+                        self.pending_ending_cutscene = True
+                elif attack_target in self.enemies:
+                    if hasattr(attack_target, 'take_damage'):
+                        if attack_target.take_damage(2):
+                            self.spawn_death_particles(attack_target)
+                            self.enemies.remove(attack_target)
+                            self.on_enemy_killed()
+                            KILL_SOUND.play()
+                    else:
+                        self.spawn_death_particles(attack_target)
+                        self.enemies.remove(attack_target)
+                        self.on_enemy_killed()
+                        KILL_SOUND.play()
+
         if self.summon_phrase_timer > 0:
             self.summon_phrase_timer -= 1
         
@@ -796,14 +950,16 @@ class Game:
                             if enemy in self.enemies:
                                 self.enemies.remove(enemy)
                             self.coins += self.get_enemy_coin_reward()
+                            self.on_enemy_killed()
                             KILL_SOUND.play()
                     else:
                         self.spawn_death_particles(enemy)
                         if enemy in self.enemies:
                             self.enemies.remove(enemy)
                         self.coins += self.get_enemy_coin_reward()
+                        self.on_enemy_killed()
                         KILL_SOUND.play()
-            
+
             boss_id = "boss"
             if self.boss and laser_rect.colliderect(pygame.Rect(self.boss.x, self.boss.y, self.boss.width, self.boss.height)):
                 if boss_id not in self.laser_immune_enemies:
@@ -824,7 +980,11 @@ class Game:
                         self.shadow_boss = None
                         self.coins += 10
                         VICTORY_SOUND.play()
-                        self.start_ending_cutscene()
+                        self.shadow_bullet_unlocked = True
+                        self.has_shadow_army = True
+                        time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                        self.show_location_rank('castle', time_taken)
+                        self.pending_ending_cutscene = True
 
     def draw_player_lasers(self):
         if not self.player_lasers:
@@ -870,23 +1030,27 @@ class Game:
             pygame.draw.circle(self.screen, (100, 180, 255), (e1x, e1y), emitter_size // 2 + 2)
             pygame.draw.circle(self.screen, (100, 180, 255), (e2x, e2y), emitter_size // 2 + 2)
 
-    def draw_ability_ui(self):
-        if self.current_ability == 0:
-            return
-        
-        y = SCREEN_HEIGHT - 50
-        x = SCREEN_WIDTH // 2 - 60
-        
+    def draw_ability_slot(self, ability, x, y, key_label):
+        """Draw a single ability slot."""
         ability_data = {
             1: ("DASH", (150, 100, 50)),
             2: ("LASER", (100, 150, 255)),
             3: ("SHIELD", (100, 200, 100)),
             4: ("BREAKER", (180, 120, 60)),
             5: ("REGEN", (255, 100, 150)),
-            6: ("SUMMON", (255, 215, 100))
+            6: ("SUMMON", (255, 215, 100)),
+            7: ("SHADOW", (140, 140, 180)),
+            8: ("CAPE", (120, 50, 150))
         }
         
-        name, color = ability_data[self.current_ability]
+        if ability == 0:
+            pygame.draw.rect(self.screen, (60, 60, 60), (x, y, 80, 30))
+            pygame.draw.rect(self.screen, (100, 100, 100), (x, y, 80, 30), 2)
+            text = self.small_font.render("EMPTY", True, (100, 100, 100))
+            self.screen.blit(text, (x + 40 - text.get_width() // 2, y + 6))
+            return
+        
+        name, color = ability_data.get(ability, ("???", WHITE))
         
         pygame.draw.rect(self.screen, color, (x, y, 80, 30))
         pygame.draw.rect(self.screen, WHITE, (x, y, 80, 30), 2)
@@ -894,51 +1058,84 @@ class Game:
         text = self.small_font.render(name, True, WHITE)
         self.screen.blit(text, (x + 40 - text.get_width() // 2, y + 6))
         
-        if self.current_ability == 2:
+        status_text = None
+        if ability == 2:
             if self.laser_cooldown > 0:
                 cd_seconds = self.laser_cooldown // 60
-                status_text = self.small_font.render(f"CD: {cd_seconds}s ({len(self.player_lasers)})", True, RED)
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
             else:
-                status_text = self.small_font.render(f"[E] Spawn ({len(self.player_lasers)})", True, GREEN)
-            self.screen.blit(status_text, (x + 90, y + 6))
-        elif self.current_ability == 4:
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        elif ability == 4:
             if self.wall_breaker_cooldown > 0:
                 cd_seconds = self.wall_breaker_cooldown // 60
-                cd_text = self.small_font.render(f"CD: {cd_seconds}s", True, RED)
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
             else:
-                cd_text = self.small_font.render("[E] Ready", True, GREEN)
-            self.screen.blit(cd_text, (x + 90, y + 6))
-        elif self.current_ability == 5:
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        elif ability == 5:
             if self.regeneration_active:
-                next_heal = (1200 - self.regeneration_timer) // 60
-                cd_text = self.small_font.render(f"ACTIVE (heal in {next_heal}s)", True, GREEN)
+                status_text = self.small_font.render(f"[{key_label}] ACTIVE", True, GREEN)
             elif self.regeneration_cooldown > 0:
                 cd_seconds = self.regeneration_cooldown // 60
-                cd_text = self.small_font.render(f"CD: {cd_seconds}s", True, RED)
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
             else:
-                cd_text = self.small_font.render("[E] Ready", True, GREEN)
-            self.screen.blit(cd_text, (x + 90, y + 6))
-        elif self.current_ability == 6:
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        elif ability == 6:
             if self.summoned_ally:
-                cd_text = self.small_font.render(f"ACTIVE ({self.summoned_ally.health}HP)", True, GREEN)
+                status_text = self.small_font.render(f"[{key_label}] {self.summoned_ally.health}HP", True, GREEN)
             elif self.summon_cooldown > 0:
                 cd_seconds = self.summon_cooldown // 60
-                cd_text = self.small_font.render(f"CD: {cd_seconds}s", True, RED)
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
             else:
-                cd_text = self.small_font.render("[E] Ready", True, GREEN)
-            self.screen.blit(cd_text, (x + 90, y + 6))
-        elif self.ability_cooldown > 0:
-            cd_seconds = self.ability_cooldown // 60
-            cd_text = self.small_font.render(f"CD: {cd_seconds}s", True, RED)
-            self.screen.blit(cd_text, (x + 90, y + 6))
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        elif ability == 7:
+            active_count = len(self.shadow_allies)
+            if self.shadow_army_cooldown > 0:
+                cd_seconds = self.shadow_army_cooldown // 60
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
+            else:
+                status_text = self.small_font.render(f"[{key_label}] x{active_count}", True, GREEN)
+        elif ability == 8:
+            if self.cape_active:
+                time_left = self.cape_timer // 60
+                status_text = self.small_font.render(f"[{key_label}] {time_left}s", True, (200, 150, 255))
+            elif self.cape_cooldown > 0:
+                cd_seconds = self.cape_cooldown // 60
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
+            else:
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        elif ability == 1 or ability == 3:
+            if self.ability_cooldown > 0:
+                cd_seconds = self.ability_cooldown // 60
+                status_text = self.small_font.render(f"[{key_label}] CD:{cd_seconds}s", True, RED)
+            else:
+                status_text = self.small_font.render(f"[{key_label}] Ready", True, GREEN)
+        
+        if status_text:
+            self.screen.blit(status_text, (x + 90, y + 6))
+
+    def draw_ability_ui(self):
+        if self.current_ability == 0 and self.second_ability == 0:
+            return
+        
+        y = SCREEN_HEIGHT - 50
+        
+        if self.ability_slots >= 2:
+            x1 = SCREEN_WIDTH // 2 - 130
+            x2 = SCREEN_WIDTH // 2 + 30
+            self.draw_ability_slot(self.current_ability, x1, y, "E")
+            self.draw_ability_slot(self.second_ability, x2, y, "Q")
         else:
-            ready_text = self.small_font.render("[E] Ready", True, GREEN)
-            self.screen.blit(ready_text, (x + 90, y + 6))
+            x = SCREEN_WIDTH // 2 - 60
+            self.draw_ability_slot(self.current_ability, x, y, "E")
         
         if self.dash_active:
             dash_text = self.font.render("DASHING!", True, (255, 200, 100))
             self.screen.blit(dash_text, (SCREEN_WIDTH // 2 - dash_text.get_width() // 2, 120))
-        
+
+        if self.cape_active:
+            cape_text = self.font.render("INVINCIBLE!", True, (200, 150, 255))
+            self.screen.blit(cape_text, (SCREEN_WIDTH // 2 - cape_text.get_width() // 2, 150))
+
         if self.shield_active:
             shield_seconds = self.shield_timer // 60
             shield_text = self.font.render(f"SHIELD: {shield_seconds}s", True, (100, 255, 100))
@@ -1029,6 +1226,7 @@ class Game:
         if self.summoned_ally:
             self.summoned_ally.x = self.player.x + self.player.width + 10
             self.summoned_ally.y = self.player.y
+        self.shadow_allies = []
         self.spawn_enemies()
         self.spawn_npcs()
         self.projectiles = []
@@ -1045,6 +1243,279 @@ class Game:
         self.laser_immune_enemies = {}
         self.play_music(BACKGROUND_MUSIC)
 
+    def calculate_rank(self, location, time_seconds):
+        """Calculate rank based on completion time for a location."""
+        rank_thresholds = {
+            'dungeon': {'S': 120, 'A': 180, 'B': 240, 'C': 300},
+            'ice_cave': {'S': 150, 'A': 210, 'B': 280, 'C': 360},
+            'castle': {'S': 240, 'A': 330, 'B': 420, 'C': 540}
+        }
+        
+        thresholds = rank_thresholds.get(location, rank_thresholds['dungeon'])
+        
+        if time_seconds <= thresholds['S']:
+            return 'S'
+        elif time_seconds <= thresholds['A']:
+            return 'A'
+        elif time_seconds <= thresholds['B']:
+            return 'B'
+        elif time_seconds <= thresholds['C']:
+            return 'C'
+        else:
+            return 'D'
+
+    def show_location_rank(self, location, time_seconds):
+        """Display rank screen after completing a location."""
+        rank = self.calculate_rank(location, time_seconds)
+        
+        is_new_best = False
+        if self.best_ranks[location]['time'] is None or time_seconds < self.best_ranks[location]['time']:
+            self.best_ranks[location]['rank'] = rank
+            self.best_ranks[location]['time'] = time_seconds
+            is_new_best = True
+        
+        location_names = {
+            'dungeon': 'Dungeon',
+            'ice_cave': 'Ice Cave',
+            'castle': 'Shadow Byako Castle'
+        }
+        
+        self.rank_screen_data = {
+            'location': location_names.get(location, location),
+            'rank': rank,
+            'time': time_seconds,
+            'is_new_best': is_new_best,
+            'best_time': self.best_ranks[location]['time'],
+            'best_rank': self.best_ranks[location]['rank']
+        }
+        self.show_rank_screen = True
+        self.rank_display_timer = 0
+
+    def draw_rank_screen(self):
+        """Draw the rank display screen."""
+        if not self.rank_screen_data:
+            return
+            
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(200)
+        self.screen.blit(overlay, (0, 0))
+        
+        data = self.rank_screen_data
+        
+        rank_colors = {
+            'S': (255, 215, 0),
+            'A': (0, 255, 100),
+            'B': (100, 180, 255),
+            'C': (255, 165, 0),
+            'D': (180, 180, 180)
+        }
+        rank_color = rank_colors.get(data['rank'], (255, 255, 255))
+        
+        title_text = self.font.render(f"{data['location']} Completed!", True, (255, 255, 255))
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 120))
+        
+        rank_font = pygame.font.Font(None, 120)
+        rank_text = rank_font.render(data['rank'], True, rank_color)
+        self.screen.blit(rank_text, (SCREEN_WIDTH // 2 - rank_text.get_width() // 2, 180))
+        
+        minutes = int(data['time'] // 60)
+        seconds = int(data['time'] % 60)
+        time_str = f"Time: {minutes}:{seconds:02d}"
+        time_text = self.font.render(time_str, True, (255, 255, 255))
+        self.screen.blit(time_text, (SCREEN_WIDTH // 2 - time_text.get_width() // 2, 290))
+        
+        if data['is_new_best']:
+            new_best_text = self.font.render("NEW BEST TIME!", True, (255, 215, 0))
+            self.screen.blit(new_best_text, (SCREEN_WIDTH // 2 - new_best_text.get_width() // 2, 330))
+        else:
+            best_minutes = int(data['best_time'] // 60)
+            best_seconds = int(data['best_time'] % 60)
+            best_str = f"Best: {best_minutes}:{best_seconds:02d} ({data['best_rank']})"
+            best_text = self.small_font.render(best_str, True, (180, 180, 180))
+            self.screen.blit(best_text, (SCREEN_WIDTH // 2 - best_text.get_width() // 2, 330))
+        
+        continue_text = self.small_font.render("Press SPACE to continue", True, (150, 150, 150))
+        self.screen.blit(continue_text, (SCREEN_WIDTH // 2 - continue_text.get_width() // 2, 400))
+
+    def get_quest_for_checkpoint(self, level):
+        """Get quest data for a specific checkpoint level."""
+        quests = {
+            4: {
+                'id': 'quest_dungeon_1',
+                'name': 'Dungeon Slayer',
+                'description': 'Defeat 10 enemies',
+                'goal': 10,
+                'type': 'kills',
+                'reward_type': 'coins',
+                'reward_amount': 100,
+                'reward_text': '100 coins'
+            },
+            14: {
+                'id': 'quest_ice_1',
+                'name': 'Frost Hunter',
+                'description': 'Defeat 15 enemies',
+                'goal': 15,
+                'type': 'kills',
+                'reward_type': 'ability_slot',
+                'reward_amount': 1,
+                'reward_text': 'Second Ability Slot!'
+            },
+            24: {
+                'id': 'quest_castle_1',
+                'name': 'Shadow Purge',
+                'description': 'Defeat 20 enemies',
+                'goal': 20,
+                'type': 'kills',
+                'reward_type': 'ability',
+                'reward_ability': 'cape',
+                'reward_text': 'Morzhaka Cape ability!'
+            }
+        }
+        return quests.get(level, None)
+
+    def start_quest(self, quest):
+        """Start a new quest."""
+        self.active_quest = quest
+        self.quest_kill_count = 0
+
+    def complete_quest(self):
+        """Complete the active quest and give rewards."""
+        if not self.active_quest:
+            return
+
+        quest = self.active_quest
+        self.quests_completed.add(quest['id'])
+
+        if quest['reward_type'] == 'coins':
+            self.coins += quest['reward_amount']
+        elif quest['reward_type'] == 'ability_slot':
+            self.ability_slots = 2
+        elif quest['reward_type'] == 'ability':
+            if quest.get('reward_ability') == 'shadow_army':
+                self.has_shadow_army = True
+                if self.current_ability == 0:
+                    self.current_ability = 7
+            elif quest.get('reward_ability') == 'cape':
+                self.has_cape = True
+                if self.current_ability == 0:
+                    self.current_ability = 8
+
+        self.active_quest = None
+        self.quest_kill_count = 0
+
+    def check_quest_progress(self):
+        """Check if active quest is completed."""
+        if not self.active_quest:
+            return False
+        if self.active_quest['type'] == 'kills':
+            return self.quest_kill_count >= self.active_quest['goal']
+        return False
+
+    def draw_quest_dialog(self):
+        """Draw the quest giver dialog."""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(180)
+        self.screen.blit(overlay, (0, 0))
+        
+        dialog_width = 500
+        dialog_height = 300
+        dialog_x = SCREEN_WIDTH // 2 - dialog_width // 2
+        dialog_y = SCREEN_HEIGHT // 2 - dialog_height // 2
+        
+        pygame.draw.rect(self.screen, (40, 30, 50), (dialog_x, dialog_y, dialog_width, dialog_height))
+        pygame.draw.rect(self.screen, (100, 80, 120), (dialog_x, dialog_y, dialog_width, dialog_height), 3)
+        
+        title = self.font.render("Quest Master Cloakius", True, (200, 170, 255))
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, dialog_y + 20))
+        
+        quest = self.get_quest_for_checkpoint(self.current_level)
+        
+        if quest and quest['id'] in self.quests_completed:
+            text1 = self.small_font.render("me already gave you quest reward", True, (200, 200, 200))
+            text2 = self.small_font.render("go be hero somewhere else", True, (200, 200, 200))
+            self.screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, dialog_y + 80))
+            self.screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, dialog_y + 110))
+            
+            close_text = self.small_font.render("Press SPACE to close", True, (150, 150, 150))
+            self.screen.blit(close_text, (SCREEN_WIDTH // 2 - close_text.get_width() // 2, dialog_y + 250))
+        
+        elif self.active_quest and self.check_quest_progress():
+            text1 = self.font.render("QUEST COMPLETE!", True, (100, 255, 100))
+            text2 = self.small_font.render(f"Reward: {self.active_quest['reward_text']}", True, (255, 215, 0))
+            self.screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, dialog_y + 80))
+            self.screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, dialog_y + 120))
+            
+            text3 = self.small_font.render("me knew you could do it", True, (200, 200, 200))
+            self.screen.blit(text3, (SCREEN_WIDTH // 2 - text3.get_width() // 2, dialog_y + 160))
+            
+            claim_text = self.small_font.render("Press SPACE to claim reward", True, (100, 255, 100))
+            self.screen.blit(claim_text, (SCREEN_WIDTH // 2 - claim_text.get_width() // 2, dialog_y + 250))
+        
+        elif self.active_quest:
+            text1 = self.small_font.render(f"Quest: {self.active_quest['name']}", True, (255, 200, 100))
+            text2 = self.small_font.render(self.active_quest['description'], True, (200, 200, 200))
+            progress = f"Progress: {self.quest_kill_count}/{self.active_quest['goal']}"
+            text3 = self.small_font.render(progress, True, (150, 200, 255))
+            
+            self.screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, dialog_y + 80))
+            self.screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, dialog_y + 110))
+            self.screen.blit(text3, (SCREEN_WIDTH // 2 - text3.get_width() // 2, dialog_y + 150))
+            
+            text4 = self.small_font.render("keep going hero morzhaka believes in you", True, (200, 200, 200))
+            self.screen.blit(text4, (SCREEN_WIDTH // 2 - text4.get_width() // 2, dialog_y + 190))
+            
+            close_text = self.small_font.render("Press SPACE to close", True, (150, 150, 150))
+            self.screen.blit(close_text, (SCREEN_WIDTH // 2 - close_text.get_width() // 2, dialog_y + 250))
+        
+        elif quest:
+            text1 = self.small_font.render("greetings brave morzhaka", True, (200, 200, 200))
+            text2 = self.small_font.render("me have quest for you", True, (200, 200, 200))
+            self.screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, dialog_y + 70))
+            self.screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, dialog_y + 95))
+            
+            quest_text = self.small_font.render(f"Quest: {quest['name']}", True, (255, 200, 100))
+            desc_text = self.small_font.render(quest['description'], True, (200, 200, 200))
+            reward_text = self.small_font.render(f"Reward: {quest['reward_text']}", True, (255, 215, 0))
+            
+            self.screen.blit(quest_text, (SCREEN_WIDTH // 2 - quest_text.get_width() // 2, dialog_y + 135))
+            self.screen.blit(desc_text, (SCREEN_WIDTH // 2 - desc_text.get_width() // 2, dialog_y + 165))
+            self.screen.blit(reward_text, (SCREEN_WIDTH // 2 - reward_text.get_width() // 2, dialog_y + 195))
+            
+            accept_text = self.small_font.render("Press SPACE to accept quest", True, (100, 255, 100))
+            self.screen.blit(accept_text, (SCREEN_WIDTH // 2 - accept_text.get_width() // 2, dialog_y + 250))
+        else:
+            text1 = self.small_font.render("me have no quest for you here", True, (200, 200, 200))
+            text2 = self.small_font.render("but me cape looks cool yes?", True, (200, 200, 200))
+            self.screen.blit(text1, (SCREEN_WIDTH // 2 - text1.get_width() // 2, dialog_y + 100))
+            self.screen.blit(text2, (SCREEN_WIDTH // 2 - text2.get_width() // 2, dialog_y + 130))
+            
+            close_text = self.small_font.render("Press SPACE to close", True, (150, 150, 150))
+            self.screen.blit(close_text, (SCREEN_WIDTH // 2 - close_text.get_width() // 2, dialog_y + 250))
+
+    def handle_quest_dialog_input(self):
+        """Handle input for quest dialog."""
+        quest = self.get_quest_for_checkpoint(self.current_level)
+        
+        if quest and quest['id'] in self.quests_completed:
+            self.in_quest_dialog = False
+        elif self.active_quest and self.check_quest_progress():
+            self.complete_quest()
+            self.in_quest_dialog = False
+        elif self.active_quest:
+            self.in_quest_dialog = False
+        elif quest:
+            self.start_quest(quest)
+            self.in_quest_dialog = False
+        else:
+            self.in_quest_dialog = False
+
+    def on_enemy_killed(self):
+        """Called when an enemy is killed - tracks quest progress."""
+        if self.active_quest and self.active_quest['type'] == 'kills':
+            self.quest_kill_count += 1
+
     def go_to_level(self, level_index):
         self.current_level = level_index
         self.is_village = False
@@ -1056,6 +1527,7 @@ class Game:
         if self.summoned_ally:
             self.summoned_ally.x = self.player.x + self.player.width + 10
             self.summoned_ally.y = self.player.y
+        self.shadow_allies = []
         self.spawn_enemies()
         self.spawn_npcs()
         self.projectiles = []
@@ -1074,6 +1546,9 @@ class Game:
         level_data = self.levels[self.current_level]
         location = level_data.get('location', 1)
 
+        if level_data.get('checkpoint', False):
+            self.checkpoint_level = self.current_level
+
         if level_data.get('is_shadow_boss', False):
             self.play_music(FINAL_BOSS_MUSIC)
         elif level_data.get('is_boss_level', False):
@@ -1086,10 +1561,6 @@ class Game:
             self.play_music(BACKGROUND_MUSIC)
 
     def next_level(self):
-        prev_level_data = self.levels[self.current_level]
-        if prev_level_data.get('checkpoint', False):
-            self.checkpoint_level = self.current_level + 1
-        
         self.current_level += 1
         
         if self.current_level >= len(self.levels):
@@ -1106,6 +1577,7 @@ class Game:
         if self.summoned_ally:
             self.summoned_ally.x = self.player.x + self.player.width + 10
             self.summoned_ally.y = self.player.y
+        self.shadow_allies = []
         self.spawn_enemies()
         self.spawn_npcs()
         self.projectiles = []
@@ -1122,6 +1594,9 @@ class Game:
         
         level_data = self.levels[self.current_level]
         location = level_data.get('location', 1)
+        
+        if level_data.get('checkpoint', False):
+            self.checkpoint_level = self.current_level
         
         if level_data.get('is_shadow_boss', False):
             self.play_music(FINAL_BOSS_MUSIC)
@@ -1159,6 +1634,8 @@ class Game:
             self.selected_bullet = 2
         if keys[pygame.K_3] and self.explosive_bullet_unlocked:
             self.selected_bullet = 3
+        if keys[pygame.K_4] and self.shadow_bullet_unlocked:
+            self.selected_bullet = 4
 
         if keys[pygame.K_SPACE] and self.shoot_cooldown <= 0:
             level_data = self.levels[self.current_level]
@@ -1167,16 +1644,24 @@ class Game:
             if has_npcs:
                 for npc in self.npcs:
                     if npc.is_player_nearby(self.player) and npc.phrase_timer <= 0:
-                        npc.interact()
-                        self.shoot_cooldown = 15
-                        npc_talked = True
+                        if npc.custom_phrases and npc.custom_phrases[0] == "QUEST_GIVER":
+                            self.in_quest_dialog = True
+                            self.shoot_cooldown = 15
+                            npc_talked = True
+                        else:
+                            npc.interact()
+                            self.shoot_cooldown = 15
+                            npc_talked = True
                         break
             if not npc_talked and not self.is_village:
                 proj_x = self.player.x + self.player.width // 2 - 4
                 proj_y = self.player.y + self.player.height // 2 - 4
-                if self.selected_bullet == 3 and self.explosive_bullet_unlocked:
+                if self.selected_bullet == 4 and self.shadow_bullet_unlocked:
+                    self.projectiles.append(ShadowOrbProjectile(proj_x, proj_y, self.player.last_direction))
+                    self.shoot_cooldown = 25
+                elif self.selected_bullet == 3 and self.explosive_bullet_unlocked:
                     self.projectiles.append(ExplosiveProjectile(proj_x, proj_y, self.player.last_direction))
-                    self.shoot_cooldown = 18
+                    self.shoot_cooldown = 50
                 elif self.selected_bullet == 2 and self.ice_bullet_unlocked:
                     self.projectiles.append(IceProjectile(proj_x, proj_y, self.player.last_direction))
                     self.shoot_cooldown = 15
@@ -1188,7 +1673,13 @@ class Game:
     def update(self):
         if self.in_ending_cutscene:
             return
-            
+
+        if self.show_rank_screen:
+            return
+
+        if self.in_quest_dialog:
+            return
+
         if self.game_won or self.game_over:
             if self.current_music:
                 self.current_music.stop()
@@ -1211,7 +1702,8 @@ class Game:
         
         if not self.is_boss_level:
             self.enemy_spawn_timer += 1
-            if self.enemy_spawn_timer >= self.enemy_spawn_interval:
+            spawn_interval = self.enemy_spawn_interval // 2 if self.hard_mode else self.enemy_spawn_interval
+            if self.enemy_spawn_timer >= spawn_interval:
                 self.enemy_spawn_timer = 0
                 self.spawn_one_enemy()
         
@@ -1231,20 +1723,24 @@ class Game:
         self.health_kits = [k for k in self.health_kits if k.active]
         
         for projectile in self.projectiles:
-            projectile.update(self.dungeon)
-        
+            if isinstance(projectile, ShadowOrbProjectile):
+                projectile.update(self.dungeon, self.enemies)
+            else:
+                projectile.update(self.dungeon)
+
         for projectile in self.projectiles:
             if not projectile.active:
                 continue
             
-            if isinstance(projectile, ExplosiveProjectile):
+            if isinstance(projectile, ShadowOrbProjectile):
                 for enemy in self.enemies[:]:
-                    if projectile.damages_enemy(enemy):
+                    if projectile.collides_with_enemy(enemy):
                         if hasattr(enemy, 'take_damage'):
-                            if enemy.take_damage(2):
+                            if enemy.take_damage(self.get_player_damage(5)):
                                 self.spawn_death_particles(enemy)
                                 self.enemies.remove(enemy)
                                 self.coins += self.get_enemy_coin_reward()
+                                self.on_enemy_killed()
                                 KILL_SOUND.play()
                             else:
                                 DAMAGE_SOUND.play()
@@ -1252,6 +1748,25 @@ class Game:
                             self.spawn_death_particles(enemy)
                             self.enemies.remove(enemy)
                             self.coins += self.get_enemy_coin_reward()
+                            self.on_enemy_killed()
+                            KILL_SOUND.play()
+            elif isinstance(projectile, ExplosiveProjectile):
+                for enemy in self.enemies[:]:
+                    if projectile.damages_enemy(enemy):
+                        if hasattr(enemy, 'take_damage'):
+                            if enemy.take_damage(self.get_player_damage(3)):
+                                self.spawn_death_particles(enemy)
+                                self.enemies.remove(enemy)
+                                self.coins += self.get_enemy_coin_reward()
+                                self.on_enemy_killed()
+                                KILL_SOUND.play()
+                            else:
+                                DAMAGE_SOUND.play()
+                        else:
+                            self.spawn_death_particles(enemy)
+                            self.enemies.remove(enemy)
+                            self.coins += self.get_enemy_coin_reward()
+                            self.on_enemy_killed()
                             KILL_SOUND.play()
             else:
                 for enemy in self.enemies[:]:
@@ -1260,10 +1775,11 @@ class Game:
                             projectile.active = False
                         
                         if hasattr(enemy, 'take_damage'):
-                            if enemy.take_damage(1):
+                            if enemy.take_damage(self.get_player_damage(1)):
                                 self.spawn_death_particles(enemy)
                                 self.enemies.remove(enemy)
                                 self.coins += self.get_enemy_coin_reward()
+                                self.on_enemy_killed()
                                 KILL_SOUND.play()
                             else:
                                 DAMAGE_SOUND.play()
@@ -1271,6 +1787,7 @@ class Game:
                             self.spawn_death_particles(enemy)
                             self.enemies.remove(enemy)
                             self.coins += self.get_enemy_coin_reward()
+                            self.on_enemy_killed()
                             KILL_SOUND.play()
                         
                         if not isinstance(projectile, IceProjectile):
@@ -1285,7 +1802,7 @@ class Game:
                     if not projectile.exploding:
                         if projectile.get_rect().colliderect(self.boss.get_rect()):
                             projectile.explode()
-                            damage = 2
+                            damage = 3
                             if self.boss.take_damage(damage):
                                 self.boss = None
                                 self.coins += 10
@@ -1295,17 +1812,23 @@ class Game:
                                     self.dungeon_completed = True
                                     self.ice_cave_unlocked = True
                                     self.ice_bullet_unlocked = True
-                                    self.return_to_village()
+                                    time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                    self.show_location_rank('dungeon', time_taken)
                                 elif level_data.get('is_ice_boss', False):
                                     self.ice_cave_completed = True
                                     self.castle_unlocked = True
                                     self.explosive_bullet_unlocked = True
-                                    self.return_to_village()
+                                    time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                    self.show_location_rank('ice_cave', time_taken)
                                 else:
                                     self.next_level()
                             break
                 elif projectile.get_rect().colliderect(self.boss.get_rect()):
-                    if not isinstance(projectile, IceProjectile):
+                    if isinstance(projectile, IceProjectile):
+                        if 'boss' in projectile.hit_enemies:
+                            continue
+                        projectile.hit_enemies.add('boss')
+                    else:
                         projectile.active = False
                     if self.boss.take_damage(1):
                         self.boss = None
@@ -1316,12 +1839,14 @@ class Game:
                             self.dungeon_completed = True
                             self.ice_cave_unlocked = True
                             self.ice_bullet_unlocked = True
-                            self.return_to_village()
+                            time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                            self.show_location_rank('dungeon', time_taken)
                         elif level_data.get('is_ice_boss', False):
                             self.ice_cave_completed = True
                             self.castle_unlocked = True
                             self.explosive_bullet_unlocked = True
-                            self.return_to_village()
+                            time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                            self.show_location_rank('ice_cave', time_taken)
                         else:
                             self.next_level()
                     break
@@ -1330,12 +1855,12 @@ class Game:
             for projectile in self.projectiles:
                 if not projectile.active:
                     continue
-                
+
                 if isinstance(projectile, ExplosiveProjectile):
                     if not projectile.exploding:
                         if projectile.get_rect().colliderect(self.final_boss.get_rect()):
                             projectile.explode()
-                            damage = 2
+                            damage = 3
                             if self.final_boss.take_damage(damage):
                                 self.final_boss = None
                                 self.coins += 10
@@ -1343,11 +1868,16 @@ class Game:
                                 self.castle_unlocked = True
                                 self.explosive_bullet_unlocked = True
                                 VICTORY_SOUND.play()
-                                self.return_to_village()
+                                time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                self.show_location_rank('ice_cave', time_taken)
                                 return
                             break
                 elif projectile.get_rect().colliderect(self.final_boss.get_rect()):
-                    if not isinstance(projectile, IceProjectile):
+                    if isinstance(projectile, IceProjectile):
+                        if 'final_boss' in projectile.hit_enemies:
+                            continue
+                        projectile.hit_enemies.add('final_boss')
+                    else:
                         projectile.active = False
                     if self.final_boss.take_damage(1):
                         self.final_boss = None
@@ -1356,7 +1886,8 @@ class Game:
                         self.castle_unlocked = True
                         self.explosive_bullet_unlocked = True
                         VICTORY_SOUND.play()
-                        self.return_to_village()
+                        time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                        self.show_location_rank('ice_cave', time_taken)
                         return
                     break
 
@@ -1364,26 +1895,38 @@ class Game:
             for projectile in self.projectiles:
                 if not projectile.active:
                     continue
-                
+
                 if isinstance(projectile, ExplosiveProjectile):
                     if not projectile.exploding:
                         if projectile.get_rect().colliderect(self.shadow_boss.get_rect()):
                             projectile.explode()
-                            damage = 2
+                            damage = 3
                             if self.shadow_boss.take_damage(damage):
                                 self.shadow_boss = None
                                 self.coins += 10
                                 VICTORY_SOUND.play()
-                                self.start_ending_cutscene()
+                                self.shadow_bullet_unlocked = True
+                                self.has_shadow_army = True
+                                time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                self.show_location_rank('castle', time_taken)
+                                self.pending_ending_cutscene = True
                             break
                 elif projectile.get_rect().colliderect(self.shadow_boss.get_rect()):
-                    if not isinstance(projectile, IceProjectile):
+                    if isinstance(projectile, IceProjectile):
+                        if 'shadow_boss' in projectile.hit_enemies:
+                            continue
+                        projectile.hit_enemies.add('shadow_boss')
+                    else:
                         projectile.active = False
                     if self.shadow_boss.take_damage(1):
                         self.shadow_boss = None
                         self.coins += 10
                         VICTORY_SOUND.play()
-                        self.start_ending_cutscene()
+                        self.shadow_bullet_unlocked = True
+                        self.has_shadow_army = True
+                        time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                        self.show_location_rank('castle', time_taken)
+                        self.pending_ending_cutscene = True
                     break
 
         self.projectiles = [p for p in self.projectiles if p.active]
@@ -1421,6 +1964,12 @@ class Game:
                                 self.summoned_ally.x -= push_x
                             if not self.dungeon.is_wall(self.summoned_ally.x, self.summoned_ally.y - push_y, self.summoned_ally.width, self.summoned_ally.height):
                                 self.summoned_ally.y -= push_y
+            for shadow_ally in self.shadow_allies[:]:
+                ally_rect = shadow_ally.get_rect()
+                boss_rect = self.boss.get_rect()
+                if boss_rect.colliderect(ally_rect):
+                    if shadow_ally.take_damage(1):
+                        self.shadow_allies.remove(shadow_ally)
         
         if self.final_boss:
             self.final_boss.move_towards_player(self.player, self.dungeon)
@@ -1451,6 +2000,12 @@ class Game:
                                 self.summoned_ally.x -= push_x
                             if not self.dungeon.is_wall(self.summoned_ally.x, self.summoned_ally.y - push_y, self.summoned_ally.width, self.summoned_ally.height):
                                 self.summoned_ally.y -= push_y
+            for shadow_ally in self.shadow_allies[:]:
+                ally_rect = shadow_ally.get_rect()
+                boss_rect = self.final_boss.get_rect()
+                if boss_rect.colliderect(ally_rect):
+                    if shadow_ally.take_damage(1):
+                        self.shadow_allies.remove(shadow_ally)
 
         if self.shadow_boss:
             self.shadow_boss.move_towards_player(self.player, self.dungeon)
@@ -1463,6 +2018,9 @@ class Game:
             shadow_enemy = self.shadow_boss.try_spawn_shadow_enemy(self.dungeon)
             if shadow_enemy:
                 self.enemies.append(shadow_enemy)
+            big_shadow = self.shadow_boss.try_spawn_big_shadow(self.dungeon)
+            if big_shadow:
+                self.enemies.append(big_shadow)
             if self.summoned_ally:
                 ally_rect = self.summoned_ally.get_rect()
                 boss_rect = self.shadow_boss.get_rect()
@@ -1484,6 +2042,12 @@ class Game:
                                 self.summoned_ally.x -= push_x
                             if not self.dungeon.is_wall(self.summoned_ally.x, self.summoned_ally.y - push_y, self.summoned_ally.width, self.summoned_ally.height):
                                 self.summoned_ally.y -= push_y
+            for shadow_ally in self.shadow_allies[:]:
+                ally_rect = shadow_ally.get_rect()
+                boss_rect = self.shadow_boss.get_rect()
+                if boss_rect.colliderect(ally_rect):
+                    if shadow_ally.take_damage(1):
+                        self.shadow_allies.remove(shadow_ally)
 
         for proj in self.boss_projectiles:
             if hasattr(proj, 'tracking'):
@@ -1518,6 +2082,12 @@ class Game:
                                 enemy.x += push_x
                             if not self.dungeon.is_wall(enemy.x, enemy.y + push_y, enemy.width, enemy.height):
                                 enemy.y += push_y
+            for shadow_ally in self.shadow_allies[:]:
+                ally_rect = shadow_ally.get_rect()
+                enemy_rect = enemy.get_rect()
+                if enemy_rect.colliderect(ally_rect):
+                    if shadow_ally.take_damage(1):
+                        self.shadow_allies.remove(shadow_ally)
         
         for proj in self.enemy_projectiles:
             proj.update(self.dungeon)
@@ -1535,11 +2105,13 @@ class Game:
                             self.spawn_death_particles(target)
                             self.enemies.remove(target)
                             self.coins += self.get_enemy_coin_reward()
+                            self.on_enemy_killed()
                             KILL_SOUND.play()
                     else:
                         self.spawn_death_particles(target)
                         self.enemies.remove(target)
                         self.coins += self.get_enemy_coin_reward()
+                        self.on_enemy_killed()
                         KILL_SOUND.play()
                 elif target == self.boss and self.boss:
                     self.boss.take_damage(2)
@@ -1553,7 +2125,7 @@ class Game:
         else:
             for enemy in self.enemies:
                 if enemy.is_touching_player(self.player):
-                    if self.dash_active:
+                    if self.dash_active or self.cape_active:
                         continue
                     if self.player.take_damage():
                         self.game_over = True
@@ -1562,21 +2134,21 @@ class Game:
                     self.regeneration_active = False
                     break
 
-            if self.boss and self.boss.is_touching_player(self.player) and not self.dash_active:
+            if self.boss and self.boss.is_touching_player(self.player) and not self.dash_active and not self.cape_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
                 self.regeneration_active = False
             
-            if self.final_boss and self.final_boss.is_touching_player(self.player) and not self.dash_active:
+            if self.final_boss and self.final_boss.is_touching_player(self.player) and not self.dash_active and not self.cape_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
                 self.damage_cooldown = 60
                 self.regeneration_active = False
 
-            if self.shadow_boss and self.shadow_boss.is_touching_player(self.player) and not self.dash_active:
+            if self.shadow_boss and self.shadow_boss.is_touching_player(self.player) and not self.dash_active and not self.cape_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
@@ -1585,7 +2157,7 @@ class Game:
 
             for proj in self.boss_projectiles:
                 if proj.collides_with_player(self.player):
-                    if self.dash_active:
+                    if self.dash_active or self.cape_active:
                         continue
                     if self.shield_active:
                         proj.dx = -proj.dx
@@ -1603,7 +2175,7 @@ class Game:
 
             for proj in self.enemy_projectiles:
                 if proj.collides_with_player(self.player):
-                    if self.dash_active:
+                    if self.dash_active or self.cape_active:
                         continue
                     if self.shield_active:
                         proj.dx = -proj.dx
@@ -1619,7 +2191,7 @@ class Game:
                         self.regeneration_active = False
                     break
             
-            if self.dungeon.check_laser_collision(self.player) and not self.dash_active:
+            if self.dungeon.check_laser_collision(self.player) and not self.dash_active and not self.cape_active:
                 if self.player.take_damage():
                     self.game_over = True
                 DAMAGE_SOUND.play()
@@ -1687,7 +2259,10 @@ class Game:
             
             if self.summoned_ally:
                 self.summoned_ally.draw(self.screen)
-            
+
+            for shadow_ally in self.shadow_allies:
+                shadow_ally.draw(self.screen)
+
             if self.boss:
                 self.boss.draw(self.screen)
             
@@ -1734,7 +2309,11 @@ class Game:
             health_label = self.small_font.render("HP:", True, WHITE)
             self.screen.blit(health_label, (SCREEN_WIDTH - 185, 10))
             self.player.draw_health(self.screen, SCREEN_WIDTH - 155, 8)
-            
+
+            if self.hard_mode:
+                hard_text = self.small_font.render("HARD MODE", True, (255, 80, 80))
+                self.screen.blit(hard_text, (SCREEN_WIDTH // 2 - hard_text.get_width() // 2, 10))
+
             bullet1_color = YELLOW if self.selected_bullet == 1 else GRAY
             bullet1_text = self.small_font.render("[1] Normal", True, bullet1_color)
             self.screen.blit(bullet1_text, (SCREEN_WIDTH - 185, 35))
@@ -1749,8 +2328,18 @@ class Game:
                 bullet3_text = self.small_font.render("[3] Boom", True, bullet3_color)
                 self.screen.blit(bullet3_text, (SCREEN_WIDTH - 185, 75))
             
+            if self.shadow_bullet_unlocked:
+                bullet4_color = (180, 100, 255) if self.selected_bullet == 4 else (120, 60, 180)
+                bullet4_text = self.small_font.render("[4] Shadow", True, bullet4_color)
+                self.screen.blit(bullet4_text, (SCREEN_WIDTH - 185, 95))
+            
             self.draw_ability_ui()
             
+            if self.active_quest:
+                quest_text = f"Quest: {self.quest_kill_count}/{self.active_quest['goal']} kills"
+                quest_surface = self.small_font.render(quest_text, True, (255, 200, 100))
+                self.screen.blit(quest_surface, (10, SCREEN_HEIGHT - 55))
+
             if self.in_shop:
                 self.draw_shop_menu()
 
@@ -1779,7 +2368,13 @@ class Game:
             
             controls_text = self.small_font.render("WASD/Arrows: move | SPACE: shoot | 1/2/3: switch bullets", True, WHITE)
             self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
-        
+
+        if self.show_rank_screen:
+            self.draw_rank_screen()
+
+        if self.in_quest_dialog:
+            self.draw_quest_dialog()
+
         pygame.display.flip()
 
     def draw_shop(self):
@@ -1843,6 +2438,10 @@ class Game:
             owned_abilities.append("REGEN")
         if self.has_summon:
             owned_abilities.append("SUMMON")
+        if self.has_shadow_army:
+            owned_abilities.append("SHADOW ARMY")
+        if self.has_cape:
+            owned_abilities.append("CAPE")
         
         if owned_abilities:
             owned_text = self.small_font.render(f"Owned: {', '.join(owned_abilities)}", True, (100, 200, 100))
@@ -1962,6 +2561,12 @@ class Game:
         if self.has_summon:
             owned_items.append({"name": "BIG MORZHAKA", "id": 6, "color": (255, 215, 100),
                                "desc": "Summon ally with 20 hearts (E key, 5min cooldown)"})
+        if self.has_shadow_army:
+            owned_items.append({"name": "SHADOW ARMY", "id": 7, "color": (140, 140, 180),
+                               "desc": "Summon infinite shadow allies (E key, 15s cooldown)"})
+        if self.has_cape:
+            owned_items.append({"name": "MORZHAKA CAPE", "id": 8, "color": (120, 50, 150),
+                               "desc": "Become invincible for 10s (E key, 45s cooldown)"})
         
         if not owned_items:
             no_ability = self.font.render("No abilities owned", True, (150, 150, 150))
@@ -1976,7 +2581,10 @@ class Game:
             exit_text = self.font.render("BACK", True, exit_color)
             self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, exit_y))
         else:
-            current_text = self.font.render("Select ability to equip:", True, WHITE)
+            if self.ability_slots >= 2:
+                current_text = self.font.render("Select ability (E=Slot1, Q=Slot2):", True, WHITE)
+            else:
+                current_text = self.font.render("Select ability to equip:", True, WHITE)
             self.screen.blit(current_text, (SCREEN_WIDTH // 2 - current_text.get_width() // 2, 100))
             
             max_selection = len(owned_items)
@@ -1985,29 +2593,33 @@ class Game:
             
             y_start = 150
             for i, item in enumerate(owned_items):
-                y = y_start + i * 60
+                y = y_start + i * 50
                 
                 if i == self.inventory_selection:
-                    pygame.draw.rect(self.screen, (60, 60, 80), (100, y - 5, SCREEN_WIDTH - 200, 55))
-                    pygame.draw.rect(self.screen, YELLOW, (100, y - 5, SCREEN_WIDTH - 200, 55), 2)
+                    pygame.draw.rect(self.screen, (60, 60, 80), (100, y - 5, SCREEN_WIDTH - 200, 45))
+                    pygame.draw.rect(self.screen, YELLOW, (100, y - 5, SCREEN_WIDTH - 200, 45), 2)
                 
                 if self.current_ability == item["id"]:
                     name_color = (100, 255, 100)
-                    status = "[EQUIPPED]"
+                    status = "[SLOT 1 - E]"
+                elif self.ability_slots >= 2 and self.second_ability == item["id"]:
+                    name_color = (100, 200, 255)
+                    status = "[SLOT 2 - Q]"
                 else:
                     name_color = item["color"]
-                    status = "[SELECT]"
+                    status = ""
                 
                 name_text = self.font.render(item["name"], True, name_color)
                 self.screen.blit(name_text, (120, y))
                 
-                status_text = self.small_font.render(status, True, name_color)
-                self.screen.blit(status_text, (SCREEN_WIDTH - 120 - status_text.get_width(), y + 5))
+                if status:
+                    status_text = self.small_font.render(status, True, name_color)
+                    self.screen.blit(status_text, (SCREEN_WIDTH - 120 - status_text.get_width(), y + 5))
                 
                 desc_text = self.small_font.render(item["desc"], True, (180, 180, 180))
-                self.screen.blit(desc_text, (120, y + 28))
+                self.screen.blit(desc_text, (120, y + 22))
             
-            exit_y = y_start + len(owned_items) * 60
+            exit_y = y_start + len(owned_items) * 50
             exit_color = YELLOW if self.inventory_selection == len(owned_items) else WHITE
             if self.inventory_selection == len(owned_items):
                 pygame.draw.rect(self.screen, (60, 60, 80), (100, exit_y - 5, SCREEN_WIDTH - 200, 40))
@@ -2015,10 +2627,13 @@ class Game:
             exit_text = self.font.render("BACK", True, exit_color)
             self.screen.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, exit_y))
         
-        controls = self.small_font.render("UP/DOWN: Select | ENTER: Equip | ESC: Back", True, GRAY)
+        if self.ability_slots >= 2:
+            controls = self.small_font.render("UP/DOWN: Select | E: Slot 1 | Q: Slot 2 | ESC: Back", True, GRAY)
+        else:
+            controls = self.small_font.render("UP/DOWN: Select | ENTER: Equip | ESC: Back", True, GRAY)
         self.screen.blit(controls, (SCREEN_WIDTH // 2 - controls.get_width() // 2, SCREEN_HEIGHT - 40))
 
-    def handle_inventory_swap(self):
+    def handle_inventory_swap(self, slot=1):
         owned_items = []
         if self.has_dash:
             owned_items.append(1)
@@ -2032,6 +2647,10 @@ class Game:
             owned_items.append(5)
         if self.has_summon:
             owned_items.append(6)
+        if self.has_shadow_army:
+            owned_items.append(7)
+        if self.has_cape:
+            owned_items.append(8)
         
         if not owned_items:
             self.in_inventory = False
@@ -2042,13 +2661,21 @@ class Game:
             return
         
         new_ability = owned_items[self.inventory_selection]
-        if self.current_ability != new_ability:
-            self.current_ability = new_ability
-            self.player_lasers = []
-            self.laser_cooldown = 0
-            self.dash_active = False
-            self.shield_active = False
-            self.ability_cooldown = 0
+        
+        if slot == 1:
+            if self.second_ability == new_ability:
+                self.second_ability = self.current_ability
+            if self.current_ability != new_ability:
+                self.current_ability = new_ability
+                self.player_lasers = []
+                self.laser_cooldown = 0
+                self.dash_active = False
+                self.shield_active = False
+                self.ability_cooldown = 0
+        elif slot == 2 and self.ability_slots >= 2:
+            if self.current_ability == new_ability:
+                self.current_ability = self.second_ability
+            self.second_ability = new_ability
         
         self.in_inventory = False
 
@@ -2125,15 +2752,18 @@ class Game:
             door_x = (door_pos[0] - 2) * TILE_SIZE
             door_y = door_pos[1] * TILE_SIZE - 8
             
-            if self.castle_unlocked:
+            if self.castle_completed:
+                door_color = (80, 120, 80)
+                frame_color = (50, 80, 50)
+            elif self.castle_unlocked:
                 door_color = (80, 60, 100)
                 frame_color = (50, 40, 70)
             else:
                 door_color = (60, 60, 60)
                 frame_color = (40, 40, 40)
-            
+
             self.draw_door(door_x, door_y, TILE_SIZE * 5, TILE_SIZE + 16, door_color, frame_color,
-                          locked=not self.castle_unlocked, completed=False)
+                          locked=not self.castle_unlocked, completed=self.castle_completed)
         
         if 'ice_cave' in doors:
             door_pos = doors['ice_cave']
@@ -2223,7 +2853,8 @@ class Game:
         
         volume_color = YELLOW if self.settings_selection == 0 else WHITE
         fullscreen_color = YELLOW if self.settings_selection == 1 else WHITE
-        back_color = YELLOW if self.settings_selection == 2 else WHITE
+        hardmode_color = YELLOW if self.settings_selection == 2 else WHITE
+        back_color = YELLOW if self.settings_selection == 3 else WHITE
         
         volume_pct = int(self.master_volume * 100)
         volume_bar = "=" * (volume_pct // 10) + "-" * (10 - volume_pct // 10)
@@ -2232,17 +2863,26 @@ class Game:
         fullscreen_status = "ON" if self.is_fullscreen else "OFF"
         fullscreen_text = self.menu_font.render(f"FULLSCREEN: {fullscreen_status}", True, fullscreen_color)
         
+        hardmode_status = "ON" if self.hard_mode else "OFF"
+        hardmode_text_color = (255, 100, 100) if self.hard_mode else hardmode_color
+        hardmode_text = self.menu_font.render(f"HARD MODE: {hardmode_status}", True, hardmode_text_color)
+        
         back_text = self.menu_font.render("BACK", True, back_color)
         
-        settings_items = [volume_text, fullscreen_text, back_text]
-        settings_y_positions = [150, 210, 270]
+        settings_items = [volume_text, fullscreen_text, hardmode_text, back_text]
+        settings_y_positions = [150, 210, 270, 330]
         
         arrow_text = self.menu_font.render(">", True, YELLOW)
         self.screen.blit(arrow_text, (SCREEN_WIDTH // 2 - settings_items[self.settings_selection].get_width() // 2 - 40, settings_y_positions[self.settings_selection]))
         
         self.screen.blit(volume_text, (SCREEN_WIDTH // 2 - volume_text.get_width() // 2, 150))
         self.screen.blit(fullscreen_text, (SCREEN_WIDTH // 2 - fullscreen_text.get_width() // 2, 210))
-        self.screen.blit(back_text, (SCREEN_WIDTH // 2 - back_text.get_width() // 2, 270))
+        self.screen.blit(hardmode_text, (SCREEN_WIDTH // 2 - hardmode_text.get_width() // 2, 270))
+        self.screen.blit(back_text, (SCREEN_WIDTH // 2 - back_text.get_width() // 2, 330))
+        
+        if self.hard_mode:
+            warning_text = self.small_font.render("Enemies: 2x HP, 2x damage | Bosses: faster | Player: 0.5x damage", True, (255, 150, 150))
+            self.screen.blit(warning_text, (SCREEN_WIDTH // 2 - warning_text.get_width() // 2, 390))
         
         controls_text = self.small_font.render("UP/DOWN: select | LEFT/RIGHT: adjust | ENTER/ESC: back", True, GRAY)
         self.screen.blit(controls_text, (SCREEN_WIDTH // 2 - controls_text.get_width() // 2, SCREEN_HEIGHT - 50))
@@ -2349,9 +2989,9 @@ class Game:
                 elif event.type == pygame.KEYDOWN:
                     if self.in_settings:
                         if event.key == pygame.K_UP or event.key == pygame.K_w:
-                            self.settings_selection = (self.settings_selection - 1) % 3
+                            self.settings_selection = (self.settings_selection - 1) % 4
                         elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                            self.settings_selection = (self.settings_selection + 1) % 3
+                            self.settings_selection = (self.settings_selection + 1) % 4
                         elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
                             if self.settings_selection == 0:
                                 self.set_volume(self.master_volume - 0.1)
@@ -2362,6 +3002,8 @@ class Game:
                             if self.settings_selection == 1:
                                 self.toggle_fullscreen()
                             elif self.settings_selection == 2:
+                                self.hard_mode = not self.hard_mode
+                            elif self.settings_selection == 3:
                                 self.in_settings = False
                         elif event.key == pygame.K_ESCAPE:
                             self.in_settings = False
@@ -2386,12 +3028,27 @@ class Game:
                         elif event.key == pygame.K_ESCAPE:
                             self.in_cutscene = False
                             self.start_game()
+                    elif self.show_rank_screen:
+                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                            self.show_rank_screen = False
+                            self.rank_screen_data = None
+                            if self.pending_ending_cutscene:
+                                self.pending_ending_cutscene = False
+                                self.start_ending_cutscene()
+                            else:
+                                self.return_to_village()
+                    elif self.in_quest_dialog:
+                        if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                            self.handle_quest_dialog_input()
+                        elif event.key == pygame.K_ESCAPE:
+                            self.in_quest_dialog = False
                     elif self.in_ending_cutscene:
                         if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
                             self.advance_ending_cutscene()
                         elif event.key == pygame.K_ESCAPE:
                             self.in_ending_cutscene = False
-                            self.game_won = True
+                            self.castle_completed = True
+                            self.return_to_village()
                     elif self.in_shop:
                         if event.key == pygame.K_ESCAPE:
                             self.in_shop = False
@@ -2402,7 +3059,7 @@ class Game:
                         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                             self.handle_shop_purchase()
                     elif self.in_inventory:
-                        owned_count = sum([self.has_dash, self.has_laser, self.has_shield, self.has_wall_breaker, self.has_regeneration, self.has_summon])
+                        owned_count = sum([self.has_dash, self.has_laser, self.has_shield, self.has_wall_breaker, self.has_regeneration, self.has_summon, self.has_shadow_army, self.has_cape])
                         max_options = owned_count + 1 if owned_count > 0 else 1
                         if event.key == pygame.K_ESCAPE:
                             self.in_inventory = False
@@ -2410,8 +3067,12 @@ class Game:
                             self.inventory_selection = (self.inventory_selection - 1) % max_options
                         elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
                             self.inventory_selection = (self.inventory_selection + 1) % max_options
+                        elif event.key == pygame.K_e:
+                            self.handle_inventory_swap(slot=1)
+                        elif event.key == pygame.K_q and self.ability_slots >= 2:
+                            self.handle_inventory_swap(slot=2)
                         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                            self.handle_inventory_swap()
+                            self.handle_inventory_swap(slot=1)
                     elif self.paused:
                         if event.key == pygame.K_ESCAPE:
                             self.paused = False
@@ -2438,26 +3099,32 @@ class Game:
                             if not self.game_won and not self.game_over:
                                 self.paused = True
                                 self.pause_selection = 0
-                        elif event.key == pygame.K_p and not self.game_won and not self.game_over:
+                        elif event.key == pygame.K_p and not self.game_won and not self.game_over and not self.show_rank_screen:
                             level_data = self.levels[self.current_level]
                             if level_data.get('is_dungeon_boss', False):
                                 self.dungeon_completed = True
                                 self.ice_cave_unlocked = True
                                 self.ice_bullet_unlocked = True
-                                self.return_to_village()
+                                time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                self.show_location_rank('dungeon', time_taken)
                             elif level_data.get('is_ice_boss', False):
                                 self.ice_cave_completed = True
                                 self.castle_unlocked = True
                                 self.explosive_bullet_unlocked = True
-                                self.return_to_village()
+                                time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                self.show_location_rank('ice_cave', time_taken)
                             elif level_data.get('is_shadow_boss', False):
-                                self.game_won = True
-                                if self.current_music:
-                                    self.current_music.stop()
+                                self.shadow_bullet_unlocked = True
+                                self.has_shadow_army = True
+                                time_taken = (pygame.time.get_ticks() - self.location_start_time) / 1000
+                                self.show_location_rank('castle', time_taken)
+                                self.pending_ending_cutscene = True
                             else:
                                 self.next_level()
                         elif event.key == pygame.K_e and not self.game_won and not self.game_over:
-                            self.activate_ability()
+                            self.activate_ability(slot=1)
+                        elif event.key == pygame.K_q and not self.game_won and not self.game_over and self.ability_slots >= 2:
+                            self.activate_ability(slot=2)
                         elif event.key == pygame.K_RETURN and not self.game_won and not self.game_over:
                             level_data = self.levels[self.current_level]
                             has_interactions = self.is_village or level_data.get('has_shop', False) or level_data.get('npcs', [])
@@ -2465,8 +3132,12 @@ class Game:
                                 npc_talked = False
                                 for npc in self.npcs:
                                     if npc.is_player_nearby(self.player):
-                                        npc.interact()
-                                        npc_talked = True
+                                        if npc.custom_phrases and npc.custom_phrases[0] == "QUEST_GIVER":
+                                            self.in_quest_dialog = True
+                                            npc_talked = True
+                                        else:
+                                            npc.interact()
+                                            npc_talked = True
                                         break
                                 if not npc_talked:
                                     player_tile_x = int(self.player.x // TILE_SIZE)
@@ -2487,12 +3158,21 @@ class Game:
                                 self.checkpoint_level = 0
                                 self.ice_bullet_unlocked = False
                                 self.explosive_bullet_unlocked = False
+                                self.shadow_bullet_unlocked = False
                                 self.selected_bullet = 1
                                 self.dungeon_unlocked = True
                                 self.ice_cave_unlocked = False
                                 self.castle_unlocked = False
                                 self.dungeon_completed = False
                                 self.ice_cave_completed = False
+                                self.castle_completed = False
+                                self.show_rank_screen = False
+                                self.pending_ending_cutscene = False
+                                self.best_ranks = {
+                                    'dungeon': {'rank': None, 'time': None},
+                                    'ice_cave': {'rank': None, 'time': None},
+                                    'castle': {'rank': None, 'time': None}
+                                }
                                 self.is_village = True
                                 self.coins = 0
                                 self.has_dash = False

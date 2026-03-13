@@ -31,6 +31,7 @@ def create_levels():
         'enemy_count': 0,
         'is_village': True,
         'location': 0,
+        'checkpoint': True,
         'doors': {
             'castle': (12, 0),
             'ice_cave': (0, 7),
@@ -178,12 +179,10 @@ def create_levels():
             },
             {
                 'pos': (18, 5),
-                'hat': 'knight',
-                'name': 'Sir Clankington',
+                'hat': 'cape',
+                'name': 'Cloakius',
                 'phrases': [
-                    "me dislike this dungeon",
-                    "me hate morzhaka clones",
-                    "my calcurator broke"
+                    "QUEST_GIVER"
                 ]
             }
         ]
@@ -511,13 +510,10 @@ def create_levels():
             },
             {
                 'pos': (18, 5),
-                'hat': 'knight',
-                'name': 'Icicle Pete',
+                'hat': 'cape',
+                'name': 'Cloakius',
                 'phrases': [
-                    "brrrr its cold",
-                    "me dont know why morzhkas bild they vilage in weard places",
-                    "me put egg in the microwave",
-                    "morzhaka want mac and chease"
+                    "QUEST_GIVER"
                 ]
             }
         ]
@@ -755,7 +751,6 @@ def create_levels():
         'exit': (23, 11),
         'enemy_count': 6,
         'location': 3,
-        'checkpoint': True,
         'lasers': [
             {'start': (3, 5), 'end': (3, 7), 'on_duration': 55, 'off_duration': 75, 'start_on': True},
             {'start': (12, 5), 'end': (12, 7), 'on_duration': 50, 'off_duration': 70, 'start_on': False},
@@ -764,8 +759,199 @@ def create_levels():
     }
     levels.append(level22_castle)
     
-    # Level 23 - Checkpoint before Shadow Byako
-    checkpoint_room = {
+    # Level 23 - Shadow Gauntlet (narrow corridors with laser traps)
+    level23_gauntlet = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 5,
+        'location': 3,
+        'lasers': [
+            {'start': (7, 3), 'end': (7, 5), 'on_duration': 50, 'off_duration': 70, 'start_on': True},
+            {'start': (12, 1), 'end': (12, 3), 'on_duration': 45, 'off_duration': 65, 'start_on': False},
+            {'start': (17, 3), 'end': (17, 5), 'on_duration': 50, 'off_duration': 70, 'start_on': True},
+            {'start': (10, 9), 'end': (10, 11), 'on_duration': 45, 'off_duration': 65, 'start_on': False},
+        ]
+    }
+    levels.append(level23_gauntlet)
+    
+    # Level 24 - Castle Village (checkpoint with shop)
+    level24_rest = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 3, 3, 3, 0, 0, 0, 3, 3, 3, 0, 0, 0, 3, 3, 3, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 2, 4, 2, 0, 0, 0, 2, 4, 2, 0, 0, 0, 2, 4, 2, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 6),
+        'exit': (23, 6),
+        'enemy_count': 0,
+        'location': 3,
+        'checkpoint': True,
+        'has_shop': True,
+        'shop_pos': (12, 5),
+        'shop_area': {'x': (10, 14), 'y': (4, 7)},
+        'npcs': [
+            {
+                'pos': (6, 6),
+                'hat': 'wizard',
+                'name': 'Sandvich Morzh',
+                'phrases': [
+                    "me want to eat my sandvich in peace"
+                ]
+            },
+            {
+                'pos': (12, 8),
+                'hat': 'pirate',
+                'name': 'Confused Morzh',
+                'phrases': [
+                    "what morzhakas are doing here",
+                    "mmmm nice morzhaka ice cream"
+                ]
+            },
+            {
+                'pos': (10, 5),
+                'hat': 'cape',
+                'name': 'Cloakius',
+                'phrases': [
+                    "QUEST_GIVER"
+                ]
+            },
+            {
+                'pos': (18, 6),
+                'hat': 'knight',
+                'name': 'Spy Hunter',
+                'phrases': [
+                    "are morzhaka or are you morzhaka spy"
+                ]
+            }
+        ]
+    }
+    levels.append(level24_rest)
+    
+    # Level 25 - Haunted Corridors (winding paths with ambush points)
+    level25_haunted = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 6,
+        'location': 3,
+        'lasers': [
+            {'start': (6, 3), 'end': (6, 5), 'on_duration': 50, 'off_duration': 65, 'start_on': True},
+            {'start': (12, 7), 'end': (12, 9), 'on_duration': 45, 'off_duration': 60, 'start_on': False},
+            {'start': (18, 3), 'end': (18, 5), 'on_duration': 50, 'off_duration': 65, 'start_on': True},
+            {'start': (5, 9), 'end': (5, 11), 'on_duration': 45, 'off_duration': 60, 'start_on': False},
+        ]
+    }
+    levels.append(level25_haunted)
+    
+    # Level 26 - Phantom Passage (complex maze with checkpoint)
+    level26_phantom = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 12),
+        'enemy_count': 6,
+        'location': 3,
+        'lasers': [
+            {'start': (7, 3), 'end': (7, 5), 'on_duration': 45, 'off_duration': 60, 'start_on': True},
+            {'start': (12, 4), 'end': (12, 6), 'on_duration': 40, 'off_duration': 55, 'start_on': False},
+            {'start': (17, 3), 'end': (17, 5), 'on_duration': 45, 'off_duration': 60, 'start_on': True},
+            {'start': (9, 8), 'end': (9, 10), 'on_duration': 40, 'off_duration': 55, 'start_on': False},
+            {'start': (15, 8), 'end': (15, 10), 'on_duration': 40, 'off_duration': 55, 'start_on': True},
+        ]
+    }
+    levels.append(level26_phantom)
+    
+    # Level 27 - Throne Approach (final gauntlet before the boss)
+    level27_approach = {
+        'tiles': [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
+        'spawn': (1, 1),
+        'exit': (23, 11),
+        'enemy_count': 7,
+        'location': 3,
+        'lasers': [
+            {'start': (4, 3), 'end': (4, 5), 'on_duration': 40, 'off_duration': 55, 'start_on': True},
+            {'start': (8, 5), 'end': (8, 7), 'on_duration': 35, 'off_duration': 50, 'start_on': False},
+            {'start': (12, 3), 'end': (12, 5), 'on_duration': 40, 'off_duration': 55, 'start_on': True},
+            {'start': (16, 5), 'end': (16, 7), 'on_duration': 35, 'off_duration': 50, 'start_on': False},
+            {'start': (20, 3), 'end': (20, 5), 'on_duration': 40, 'off_duration': 55, 'start_on': True},
+            {'start': (12, 9), 'end': (12, 11), 'on_duration': 35, 'off_duration': 50, 'start_on': False},
+        ]
+    }
+    levels.append(level27_approach)
+    
+    # Level 28 - Checkpoint before Shadow Byako (safe room)
+    level28_checkpoint = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -785,12 +971,13 @@ def create_levels():
         'spawn': (1, 7),
         'exit': (23, 7),
         'enemy_count': 0,
-        'location': 3
+        'location': 3,
+        'checkpoint': True
     }
-    levels.append(checkpoint_room)
+    levels.append(level28_checkpoint)
     
-    # Level 24 - Shadow Lord's Throne (Final Boss)
-    castle_boss = {
+    # Level 29 - Shadow Lord's Throne (Final Boss)
+    level29_boss = {
         'tiles': [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -814,6 +1001,6 @@ def create_levels():
         'is_shadow_boss': True,
         'location': 3
     }
-    levels.append(castle_boss)
+    levels.append(level29_boss)
     
     return levels

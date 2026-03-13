@@ -1405,6 +1405,98 @@ class ShadowEnemy:
         return self.get_rect().inflate(4, 4).colliderect(player.get_rect())
 
 
+class BigShadowEnemy:
+    """Big shadow morzhaka - tougher minion with HP, spawned when Shadow Byako is low."""
+    def __init__(self, x, y):
+        from sprites import create_big_shadow_enemy_sprite
+        self.x = x
+        self.y = y
+        self.speed = ENEMY_SPEED * 0.8
+        self.path = []
+        self.path_update_timer = 0
+        self.path_update_interval = 15
+        self.sprite = create_big_shadow_enemy_sprite()
+        self.width = self.sprite.get_width()
+        self.height = self.sprite.get_height()
+        self.blink_timer = 0
+        self.blink_duration = 8
+        self.max_health = 6
+        self.health = self.max_health
+
+    def update_path(self, player, dungeon):
+        my_tile = (int((self.x + self.width // 2) // TILE_SIZE),
+                   int((self.y + self.height // 2) // TILE_SIZE))
+        player_tile = (int((player.x + player.width // 2) // TILE_SIZE),
+                       int((player.y + player.height // 2) // TILE_SIZE))
+        self.path = find_path(my_tile, player_tile, dungeon.tiles)
+
+    def move_towards_player(self, player, dungeon):
+        self.path_update_timer += 1
+        if self.path_update_timer >= self.path_update_interval or not self.path:
+            self.path_update_timer = 0
+            self.update_path(player, dungeon)
+
+        if not self.path:
+            return
+
+        target_tile = self.path[0]
+        target_x = target_tile[0] * TILE_SIZE
+        target_y = target_tile[1] * TILE_SIZE
+
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+
+        if dist < self.speed * 2:
+            self.path.pop(0)
+
+        if dist > 0:
+            dx = dx / dist
+            dy = dy / dist
+            new_x = self.x + dx * self.speed
+            new_y = self.y + dy * self.speed
+
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+                self.x = new_x
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+                self.y = new_y
+
+    def draw(self, screen):
+        if self.blink_timer > 0 and self.blink_timer % 2 == 1:
+            return
+        screen.blit(self.sprite, (self.x, self.y))
+        
+        bar_width = self.width
+        bar_height = 4
+        bar_x = self.x
+        bar_y = self.y - 8
+        pygame.draw.rect(screen, (40, 40, 40), (bar_x, bar_y, bar_width, bar_height))
+        health_ratio = self.health / self.max_health
+        health_width = int(bar_width * health_ratio)
+        pygame.draw.rect(screen, (150, 50, 50), (bar_x, bar_y, health_width, bar_height))
+
+    def update_blink(self):
+        if self.blink_timer > 0:
+            self.blink_timer -= 1
+
+    def start_blink(self):
+        self.blink_timer = self.blink_duration
+
+    def take_damage(self, amount=1):
+        self.health -= amount
+        self.start_blink()
+        return self.health <= 0
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def collides_with_player(self, player):
+        return self.get_rect().colliderect(player.get_rect())
+
+    def is_touching_player(self, player):
+        return self.get_rect().inflate(4, 4).colliderect(player.get_rect())
+
+
 class ShadowBoss:
     """Shadow Lord boss for the castle - 40 HP, fast and aggressive."""
     def __init__(self, x, y):
@@ -1435,6 +1527,11 @@ class ShadowBoss:
         self.spawn_enemy_interval = 420
         self.long_bullet_timer = 0
         self.long_bullet_interval = 600
+        self.wave = 1
+        self.wave_spawn_timer = 0
+        self.wave_spawn_interval = 300
+        self.wave_enemies_to_spawn = 0
+        self.summoned_big_shadow = False
 
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
@@ -1614,6 +1711,58 @@ class ShadowBoss:
             if valid_positions:
                 pos = random.choice(valid_positions)
                 return ShadowEnemy(pos[0], pos[1])
+        return None
+
+    def try_spawn_wave(self, dungeon):
+        """Spawn waves of shadow enemies periodically."""
+        self.wave_spawn_timer += 1
+        spawned = []
+        
+        if self.wave_spawn_timer >= self.wave_spawn_interval:
+            self.wave_spawn_timer = 0
+            self.wave += 1
+            num_enemies = min(self.wave + 1, 5)
+            
+            valid_positions = []
+            for tile_y in range(len(dungeon.tiles)):
+                for tile_x in range(len(dungeon.tiles[0])):
+                    if dungeon.tiles[tile_y][tile_x] == 0:
+                        pos_x = tile_x * TILE_SIZE + 4
+                        pos_y = tile_y * TILE_SIZE + 4
+                        dist_to_boss = ((pos_x - self.x) ** 2 + (pos_y - self.y) ** 2) ** 0.5
+                        if dist_to_boss > 100 and dist_to_boss < 250:
+                            valid_positions.append((pos_x, pos_y))
+            
+            if valid_positions:
+                for _ in range(num_enemies):
+                    if valid_positions:
+                        pos = random.choice(valid_positions)
+                        valid_positions.remove(pos)
+                        spawned.append(ShadowEnemy(pos[0], pos[1]))
+        
+        return spawned
+
+    def try_spawn_big_shadow(self, dungeon):
+        """Spawn big shadow morzhaka when HP is low (below 25%)."""
+        if self.summoned_big_shadow:
+            return None
+        
+        if self.health <= self.max_health // 4:
+            self.summoned_big_shadow = True
+            
+            valid_positions = []
+            for tile_y in range(len(dungeon.tiles)):
+                for tile_x in range(len(dungeon.tiles[0])):
+                    if dungeon.tiles[tile_y][tile_x] == 0:
+                        pos_x = tile_x * TILE_SIZE
+                        pos_y = tile_y * TILE_SIZE
+                        dist_to_boss = ((pos_x - self.x) ** 2 + (pos_y - self.y) ** 2) ** 0.5
+                        if dist_to_boss > 60 and dist_to_boss < 180:
+                            valid_positions.append((pos_x, pos_y))
+            
+            if valid_positions:
+                pos = random.choice(valid_positions)
+                return BigShadowEnemy(pos[0], pos[1])
         return None
 
     def take_damage(self, amount=1):

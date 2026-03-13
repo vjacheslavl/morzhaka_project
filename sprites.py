@@ -485,6 +485,53 @@ def create_summoned_ally_sprite():
     return sprite
 
 
+def create_shadow_ally_sprite():
+    """Create gray shadow morzhaka ally sprite."""
+    sprite_data = [
+        [0, 0, 5, 1, 1, 1, 5, 0, 0],
+        [0, 1, 1, 5, 1, 5, 1, 1, 0],
+        [5, 2, 2, 1, 1, 1, 2, 2, 5],
+        [1, 2, 3, 1, 1, 1, 2, 3, 1],
+        [5, 1, 1, 1, 2, 1, 1, 1, 5],
+        [1, 3, 2, 2, 2, 2, 2, 1, 1],
+        [3, 3, 2, 3, 3, 3, 2, 3, 3],
+        [3, 3, 3, 2, 3, 2, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 6, 0, 0, 0, 6, 3, 0],
+        [3, 5, 3, 0, 0, 0, 3, 5, 3],
+    ]
+
+    gray_skin = (140, 140, 150)
+    gray_eyes = (80, 80, 100)
+    gray_body = (180, 180, 190)
+    gray_accent = (120, 120, 130)
+    gray_boots = (100, 100, 110)
+    purple_glow = (160, 120, 200)
+
+    colors = {
+        1: gray_skin,
+        2: gray_eyes,
+        3: gray_body,
+        5: gray_accent,
+        6: gray_boots,
+    }
+
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
+
+    return sprite
+
+
 def create_npc_sprite(hat_type='wizard'):
     """Create NPC sprite - same as player but with a hat on top."""
     sprite_data = [
@@ -609,6 +656,24 @@ def create_npc_sprite(hat_type='wizard'):
         pygame.draw.rect(sprite, ice_light, (6 * P, P, P, 3 * P))
         pygame.draw.rect(sprite, ice_dark, (0, 5 * P, 9 * P, P))
     
+    elif hat_type == 'cape':
+        cape_color = (100, 40, 140)
+        cape_dark = (70, 25, 100)
+        cape_light = (140, 70, 170)
+        hood_color = (90, 35, 120)
+        clasp_color = (255, 200, 50)
+        
+        pygame.draw.rect(sprite, cape_dark, (0, hat_offset_y + 2 * P, 2 * P, 7 * P))
+        pygame.draw.rect(sprite, cape_dark, (7 * P, hat_offset_y + 2 * P, 2 * P, 7 * P))
+        pygame.draw.rect(sprite, cape_color, (P, hat_offset_y + 3 * P, P, 5 * P))
+        pygame.draw.rect(sprite, cape_color, (7 * P, hat_offset_y + 3 * P, P, 5 * P))
+        
+        pygame.draw.rect(sprite, hood_color, (2 * P, 2 * P, 5 * P, 4 * P))
+        pygame.draw.rect(sprite, cape_light, (3 * P, 3 * P, 3 * P, 2 * P))
+        pygame.draw.rect(sprite, cape_dark, (2 * P, 5 * P, 5 * P, P))
+        
+        pygame.draw.rect(sprite, clasp_color, (4 * P, hat_offset_y + P, P, P))
+    
     return sprite
 
 
@@ -647,6 +712,56 @@ def create_shadow_enemy_sprite(is_light=True):
         3: body,
         5: accent,
         6: boots
+    }
+
+    width = len(sprite_data[0]) * PIXEL_SIZE
+    height = len(sprite_data) * PIXEL_SIZE
+    sprite = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    for y, row in enumerate(sprite_data):
+        for x, pixel in enumerate(row):
+            if pixel in colors:
+                pygame.draw.rect(
+                    sprite, colors[pixel],
+                    (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
+                )
+
+    return sprite
+
+
+def create_big_shadow_enemy_sprite():
+    """Create big shadow morzhaka sprite - larger and more intimidating."""
+    sprite_data = [
+        [0, 0, 0, 5, 5, 1, 1, 1, 1, 5, 5, 0, 0, 0],
+        [0, 0, 5, 1, 1, 1, 5, 5, 1, 1, 1, 5, 0, 0],
+        [0, 5, 1, 1, 1, 5, 1, 1, 5, 1, 1, 1, 5, 0],
+        [5, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 1, 5],
+        [5, 1, 2, 7, 1, 1, 1, 1, 1, 1, 2, 7, 1, 5],
+        [1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1],
+        [1, 5, 3, 3, 2, 2, 2, 2, 2, 2, 3, 3, 5, 1],
+        [5, 3, 3, 3, 3, 2, 3, 3, 2, 3, 3, 3, 3, 5],
+        [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+        [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+        [0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0],
+        [0, 3, 3, 6, 6, 0, 0, 0, 0, 6, 6, 3, 3, 0],
+        [0, 3, 6, 6, 3, 0, 0, 0, 0, 3, 6, 6, 3, 0],
+        [3, 5, 5, 3, 3, 0, 0, 0, 0, 3, 3, 5, 5, 3],
+    ]
+
+    skin = (50, 50, 60)
+    eyes = (255, 50, 50)
+    body = (35, 35, 45)
+    accent = (25, 25, 35)
+    boots = (40, 40, 50)
+    glow = (180, 50, 50)
+
+    colors = {
+        1: skin,
+        2: eyes,
+        3: body,
+        5: accent,
+        6: boots,
+        7: glow
     }
 
     width = len(sprite_data[0]) * PIXEL_SIZE
