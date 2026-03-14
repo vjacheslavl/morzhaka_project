@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+import os
 
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, PLAYER_SPEED,
@@ -169,6 +170,16 @@ class Game:
         self.menu_enemies, self.menu_boss, self.menu_player, self.menu_final_boss = init_menu_background()
 
     def init_cutscene(self):
+        self.cutscene_bg_images = {}
+        for i in range(1, 4):
+            try:
+                img_path = os.path.join(os.path.dirname(__file__), "assets", f"cutscene_bg_{i}.png")
+                img = pygame.image.load(img_path).convert()
+                img = pygame.transform.scale(img, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                self.cutscene_bg_images[i] = img
+            except Exception:
+                self.cutscene_bg_images[i] = None
+        
         self.cutscene_pages = [
             {
                 "title": "A PEACEFUL DAY",
@@ -179,7 +190,8 @@ class Game:
                     "For years, he taught you the ancient arts",
                     "of combat and the way of the warrior."
                 ],
-                "bg_color": (15, 20, 15)
+                "bg_color": (15, 20, 15),
+                "bg_image": 1
             },
             {
                 "title": "THE DARK LORD STRIKES",
@@ -190,7 +202,8 @@ class Game:
                     "He kidnapped Master Morzhaka and dragged him",
                     "deep into his cursed dungeon fortress."
                 ],
-                "bg_color": (25, 10, 10)
+                "bg_color": (25, 10, 10),
+                "bg_image": 2
             },
             {
                 "title": "YOUR MISSION",
@@ -202,7 +215,8 @@ class Game:
                     "The Dark Lord holds Master Morzhaka there...",
                     "Only you can stop him and save your Master!"
                 ],
-                "bg_color": (10, 10, 25)
+                "bg_color": (10, 10, 25),
+                "bg_image": 3
             },
             {
                 "title": "CONTROLS",
@@ -221,6 +235,16 @@ class Game:
         self.cutscene_player_sprite = create_player_sprites()
 
     def init_ending_cutscene(self):
+        self.ending_bg_images = {}
+        for i in range(1, 5):
+            try:
+                img_path = os.path.join(os.path.dirname(__file__), "assets", f"ending_bg_{i}.png")
+                img = pygame.image.load(img_path).convert()
+                img = pygame.transform.scale(img, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                self.ending_bg_images[i] = img
+            except Exception:
+                self.ending_bg_images[i] = None
+        
         self.ending_pages = [
             {
                 "title": "VICTORY!",
@@ -229,7 +253,8 @@ class Game:
                     "The dark lord's reign of terror has ended.",
                     "Light returns to the land..."
                 ],
-                "bg_color": (20, 15, 30)
+                "bg_color": (20, 15, 30),
+                "bg_image": 2
             },
             {
                 "title": "THE SHADOW FADES",
@@ -238,7 +263,8 @@ class Game:
                     "the cursed castle begins to crumble.",
                     "You must escape quickly!"
                 ],
-                "bg_color": (30, 20, 25)
+                "bg_color": (30, 20, 25),
+                "bg_image": 3
             },
             {
                 "title": "MASTER MORZHAKA",
@@ -248,7 +274,8 @@ class Game:
                     "\"You have surpassed all my teachings.\"",
                     "\"The darkness will not return for generations.\""
                 ],
-                "bg_color": (25, 35, 20)
+                "bg_color": (25, 35, 20),
+                "bg_image": 1
             },
             {
                 "title": "A NEW DAWN",
@@ -260,7 +287,8 @@ class Game:
                     "Perhaps one day, a new threat will arise.",
                     "And you will be ready."
                 ],
-                "bg_color": (40, 50, 60)
+                "bg_color": (40, 50, 60),
+                "bg_image": 4
             },
             {
                 "title": "THE END",
@@ -348,7 +376,12 @@ class Game:
 
     def draw_ending_cutscene(self):
         page_data = self.ending_pages[self.ending_page]
-        self.screen.fill(page_data["bg_color"])
+        
+        bg_image_key = page_data.get("bg_image")
+        if bg_image_key and self.ending_bg_images.get(bg_image_key):
+            self.screen.blit(self.ending_bg_images[bg_image_key], (0, 0))
+        else:
+            self.screen.fill(page_data["bg_color"])
 
         alpha = self.ending_fade
         
@@ -384,7 +417,7 @@ class Game:
             current_char += len(line)
             display_line = line[:line_chars]
 
-            text_surface = self.cutscene_font.render(display_line, True, (220, 220, 220))
+            text_surface = self.cutscene_font.render(display_line, True, (255, 165, 0))
             text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, y_offset))
 
             text_with_alpha = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
@@ -489,7 +522,12 @@ class Game:
 
     def draw_cutscene(self):
         page_data = self.cutscene_pages[self.cutscene_page]
-        self.screen.fill(page_data["bg_color"])
+        
+        bg_image_key = page_data.get("bg_image")
+        if bg_image_key and self.cutscene_bg_images.get(bg_image_key):
+            self.screen.blit(self.cutscene_bg_images[bg_image_key], (0, 0))
+        else:
+            self.screen.fill(page_data["bg_color"])
         
         alpha = self.cutscene_fade
         
@@ -513,7 +551,7 @@ class Game:
             line_chars = min(len(line), chars_shown - current_char)
             display_line = line[:line_chars]
             
-            text_surface = self.cutscene_font.render(display_line, True, (200, 200, 200))
+            text_surface = self.cutscene_font.render(display_line, True, (255, 165, 0))
             text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, y_offset))
             
             text_with_alpha = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
