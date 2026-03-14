@@ -280,6 +280,13 @@ class Game:
         self.ending_fade = 0
         self.ending_text_progress = 0
 
+    def has_all_s_ranks(self):
+        """Check if all three locations have been completed with S rank."""
+        for location in ['dungeon', 'ice_cave', 'castle']:
+            if self.best_ranks[location]['rank'] != 'S':
+                return False
+        return True
+
     def start_ending_cutscene(self):
         self.in_ending_cutscene = True
         self.paused = False
@@ -292,6 +299,28 @@ class Game:
         self.ending_timer = 0
         self.ending_fade = 0
         self.ending_text_progress = 0
+        
+        # Rebuild ending pages
+        self.init_ending_cutscene()
+        
+        # Add secret ending page if all S ranks achieved
+        if self.has_all_s_ranks():
+            secret_page = {
+                "title": "THE MOONLIGHT BLESSING",
+                "text": [
+                    "As you gaze upon the night sky,",
+                    "the moon shines brighter than ever before.",
+                    "",
+                    "A celestial reward for the true master...",
+                    "One who conquered all challenges with perfection.",
+                    "",
+                    "You are the LEGENDARY MORZHAKA."
+                ],
+                "bg_color": (5, 5, 15),
+                "is_secret": True
+            }
+            self.ending_pages.append(secret_page)
+        
         if self.current_music:
             self.current_music.stop()
 
@@ -322,11 +351,17 @@ class Game:
         self.screen.fill(page_data["bg_color"])
 
         alpha = self.ending_fade
+        
+        # Draw glowing moon for secret ending
+        if page_data.get("is_secret", False):
+            self.draw_secret_ending_moon()
 
         if page_data["title"] == "THE END":
             title_color = (255, 215, 0)
         elif page_data["title"] == "VICTORY!":
             title_color = (100, 255, 100)
+        elif page_data["title"] == "THE MOONLIGHT BLESSING":
+            title_color = (200, 220, 255)
         else:
             title_color = (200, 180, 150)
         
@@ -367,6 +402,55 @@ class Game:
         hint_surface = self.small_font.render(hint_text, True, (150, 150, 150))
         hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
         self.screen.blit(hint_surface, hint_rect)
+
+    def draw_secret_ending_moon(self):
+        """Draw a brightly glowing moon for the secret ending."""
+        import math
+        
+        moon_x = SCREEN_WIDTH // 2
+        moon_y = SCREEN_HEIGHT - 120
+        moon_radius = 40
+        
+        # Pulsing glow effect
+        pulse = math.sin(self.ending_timer * 0.05) * 0.3 + 0.7
+        glow_intensity = int(255 * pulse)
+        
+        # Draw multiple glow layers (outer to inner)
+        for i in range(8, 0, -1):
+            glow_radius = moon_radius + i * 15
+            glow_alpha = int((40 - i * 4) * pulse)
+            glow_surface = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+            glow_color = (200, 220, 255, glow_alpha)
+            pygame.draw.circle(glow_surface, glow_color, (glow_radius, glow_radius), glow_radius)
+            self.screen.blit(glow_surface, (moon_x - glow_radius, moon_y - glow_radius))
+        
+        # Draw bright inner glow
+        inner_glow_surface = pygame.Surface((moon_radius * 4, moon_radius * 4), pygame.SRCALPHA)
+        inner_glow_color = (220, 235, 255, int(100 * pulse))
+        pygame.draw.circle(inner_glow_surface, inner_glow_color, (moon_radius * 2, moon_radius * 2), moon_radius * 2)
+        self.screen.blit(inner_glow_surface, (moon_x - moon_radius * 2, moon_y - moon_radius * 2))
+        
+        # Draw the moon itself (bright white-blue)
+        moon_color = (240, 245, 255)
+        pygame.draw.circle(self.screen, moon_color, (moon_x, moon_y), moon_radius)
+        
+        # Draw moon highlights
+        highlight_color = (255, 255, 255)
+        pygame.draw.circle(self.screen, highlight_color, (moon_x - 10, moon_y - 10), moon_radius // 3)
+        
+        # Draw some stars around the moon
+        star_positions = [
+            (moon_x - 100, moon_y - 60), (moon_x + 80, moon_y - 50),
+            (moon_x - 70, moon_y + 40), (moon_x + 110, moon_y + 20),
+            (moon_x - 130, moon_y - 10), (moon_x + 60, moon_y - 80),
+            (moon_x - 50, moon_y - 90), (moon_x + 140, moon_y - 30)
+        ]
+        for i, (sx, sy) in enumerate(star_positions):
+            star_pulse = math.sin(self.ending_timer * 0.08 + i) * 0.5 + 0.5
+            star_brightness = int(150 + 105 * star_pulse)
+            star_color = (star_brightness, star_brightness, min(255, star_brightness + 30))
+            star_size = 2 if i % 3 == 0 else 1
+            pygame.draw.circle(self.screen, star_color, (sx, sy), star_size)
 
     def start_cutscene(self):
         self.in_menu = False
@@ -3195,7 +3279,25 @@ class Game:
                                 self.player_lasers = []
                                 self.laser_cooldown = 0
                             else:
-                                self.current_level = self.checkpoint_level
+                                # Check if current location has been completed (beat the boss)
+                                # If so, respawn at Morzhaka Village instead of old checkpoint
+                                current_level_data = self.levels[self.current_level]
+                                current_location = current_level_data.get('location', 0)
+                                
+                                location_completed = False
+                                if current_location == 1 and self.dungeon_completed:
+                                    location_completed = True
+                                elif current_location == 2 and self.ice_cave_completed:
+                                    location_completed = True
+                                elif current_location == 3 and self.castle_completed:
+                                    location_completed = True
+                                
+                                if location_completed:
+                                    # Beat the location, go to Morzhaka Village
+                                    self.current_level = 0
+                                    self.is_village = True
+                                else:
+                                    self.current_level = self.checkpoint_level
                             self.dungeon = Dungeon(self.levels[self.current_level], self.current_level + 1)
                             spawn = self.dungeon.spawn_point
                             self.player.x = spawn[0] * TILE_SIZE + 4

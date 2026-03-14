@@ -62,8 +62,9 @@ class Enemy:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -71,9 +72,9 @@ class Enemy:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def move_directly_towards(self, player, dungeon):
@@ -85,9 +86,9 @@ class Enemy:
             dy = dy / distance
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def would_collide_with_player(self, new_x, new_y, player):
@@ -238,8 +239,9 @@ class IceEnemy:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -247,9 +249,9 @@ class IceEnemy:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def move_directly_towards(self, player, dungeon):
@@ -261,9 +263,9 @@ class IceEnemy:
             dy = dy / distance
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def would_collide_with_player(self, new_x, new_y, player):
@@ -429,8 +431,9 @@ class CastleEnemyFast:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -438,9 +441,9 @@ class CastleEnemyFast:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def move_directly_towards(self, player, dungeon):
@@ -452,9 +455,9 @@ class CastleEnemyFast:
             dy = dy / distance
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def would_collide_with_player(self, new_x, new_y, player):
@@ -598,8 +601,9 @@ class CastleEnemyShooter:
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
         if distance < self.speed:
-            self.x = target_x
-            self.y = target_y
+            if not self.would_collide_with_player(target_x, target_y, player):
+                self.x = target_x
+                self.y = target_y
             self.path.pop(0)
         else:
             dx = dx / distance
@@ -607,9 +611,9 @@ class CastleEnemyShooter:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
             
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def move_directly_towards(self, player, dungeon):
@@ -621,9 +625,9 @@ class CastleEnemyShooter:
             dy = dy / distance
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def would_collide_with_player(self, new_x, new_y, player):
@@ -754,6 +758,10 @@ class Boss:
         self.speed_boost_cooldown = 360
         self.is_speed_boosted = False
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        boss_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return boss_rect.colliderect(player.get_rect())
+
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
         if self.teleport_timer < self.teleport_interval:
@@ -770,7 +778,7 @@ class Boss:
                     
                     if not dungeon.is_wall(pos_x, pos_y, self.width, self.height):
                         dist_to_player = ((pos_x - player.x) ** 2 + (pos_y - player.y) ** 2) ** 0.5
-                        if dist_to_player > 150:
+                        if dist_to_player > 150 and not self.would_collide_with_player(pos_x, pos_y, player):
                             valid_positions.append((pos_x, pos_y))
         
         if valid_positions:
@@ -953,6 +961,10 @@ class IceBoss:
         self.speed_boost_cooldown = 360
         self.is_speed_boosted = False
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        boss_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return boss_rect.colliderect(player.get_rect())
+
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
         if self.teleport_timer < self.teleport_interval:
@@ -969,7 +981,7 @@ class IceBoss:
                     
                     if pos_x + self.width <= SCREEN_WIDTH and pos_y + self.height <= SCREEN_HEIGHT:
                         dist_to_player = ((pos_x - player.x)**2 + (pos_y - player.y)**2)**0.5
-                        if dist_to_player > 150:
+                        if dist_to_player > 150 and not self.would_collide_with_player(pos_x, pos_y, player):
                             valid_positions.append((pos_x, pos_y))
 
         if valid_positions:
@@ -1153,6 +1165,10 @@ class FinalBoss:
         self.speed_boost_cooldown = 360
         self.is_speed_boosted = False
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        boss_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return boss_rect.colliderect(player.get_rect())
+
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
         if self.teleport_timer < self.teleport_interval:
@@ -1169,7 +1185,7 @@ class FinalBoss:
                     
                     if not dungeon.is_wall(pos_x, pos_y, self.width, self.height):
                         dist_to_player = ((pos_x - player.x) ** 2 + (pos_y - player.y) ** 2) ** 0.5
-                        if dist_to_player > 150:
+                        if dist_to_player > 150 and not self.would_collide_with_player(pos_x, pos_y, player):
                             valid_positions.append((pos_x, pos_y))
         
         if valid_positions:
@@ -1348,6 +1364,10 @@ class ShadowEnemy:
                        int((player.y + player.height // 2) // TILE_SIZE))
         self.path = find_path(my_tile, player_tile, dungeon.tiles)
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
+
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
         if self.path_update_timer >= self.path_update_interval or not self.path:
@@ -1374,9 +1394,9 @@ class ShadowEnemy:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
 
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def draw(self, screen):
@@ -1430,6 +1450,10 @@ class BigShadowEnemy:
                        int((player.y + player.height // 2) // TILE_SIZE))
         self.path = find_path(my_tile, player_tile, dungeon.tiles)
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        enemy_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return enemy_rect.colliderect(player.get_rect())
+
     def move_towards_player(self, player, dungeon):
         self.path_update_timer += 1
         if self.path_update_timer >= self.path_update_interval or not self.path:
@@ -1456,9 +1480,9 @@ class BigShadowEnemy:
             new_x = self.x + dx * self.speed
             new_y = self.y + dy * self.speed
 
-            if not dungeon.is_wall(new_x, self.y, self.width, self.height):
+            if not dungeon.is_wall(new_x, self.y, self.width, self.height) and not self.would_collide_with_player(new_x, self.y, player):
                 self.x = new_x
-            if not dungeon.is_wall(self.x, new_y, self.width, self.height):
+            if not dungeon.is_wall(self.x, new_y, self.width, self.height) and not self.would_collide_with_player(self.x, new_y, player):
                 self.y = new_y
 
     def draw(self, screen):
@@ -1533,6 +1557,10 @@ class ShadowBoss:
         self.wave_enemies_to_spawn = 0
         self.summoned_big_shadow = False
 
+    def would_collide_with_player(self, new_x, new_y, player):
+        boss_rect = pygame.Rect(new_x, new_y, self.width, self.height)
+        return boss_rect.colliderect(player.get_rect())
+
     def teleport(self, player, dungeon):
         self.teleport_timer += 1
         if self.teleport_timer < self.teleport_interval:
@@ -1549,7 +1577,7 @@ class ShadowBoss:
 
                     if pos_x + self.width <= SCREEN_WIDTH and pos_y + self.height <= SCREEN_HEIGHT:
                         dist_to_player = ((pos_x - player.x)**2 + (pos_y - player.y)**2)**0.5
-                        if dist_to_player > 100 and dist_to_player < 300:
+                        if dist_to_player > 100 and dist_to_player < 300 and not self.would_collide_with_player(pos_x, pos_y, player):
                             valid_positions.append((pos_x, pos_y))
 
         if valid_positions:
